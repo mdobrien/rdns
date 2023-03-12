@@ -15,8 +15,13 @@ def expand_cidr(cidr):
     return addresses
 
 
-def rdns(cidr='128.8.0.0/24', dns_server_ip='8.8.8.8', qps=500):
-	# TODO add checks to parameter inputs
+def rdns(cidr='128.8.0.0/24', dns_server_ip='8.8.8.8', qps=None):
+	# Todo: factor in dns lookup time in to wait time
+	# TODO: calculate actually rate dns packets are being sent/recv
+	# Assums dns lookup is constant time 
+	# wait 60s / qps to get time to pause in between rdns request
+	if qps:
+		wait = 60 / qps
 
 	nets = expand_cidr(cidr)
 	results = []
@@ -33,6 +38,9 @@ def rdns(cidr='128.8.0.0/24', dns_server_ip='8.8.8.8', qps=500):
 			results.append((net, name))
 		else:
 			name = None
+
+		if qps:
+			time.sleep(wait)
 
 		# print (f'{ans!r}')
 		# print (f'######### {net} - {name} ##########')

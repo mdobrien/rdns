@@ -23,3 +23,9 @@ ENV PIP_TRUSTED_HOST=$PIP_TRUSTED_HOST
 
 RUN pip3 --no-cache install --upgrade pip setuptools wheel scapy
 
+# Copy in source
+COPY rdns.py /root/rdns.py
+
+WORKDIR /root/
+ENTRYPOINT ['python3', '/root/rdns.py']
+
