@@ -6,6 +6,7 @@ import sys
 from scapy.all import *
 
 """
+# Sucess 1
 # pre dynamicly adjust wait based on interval time
 python3 rdns.py run --cidr 128.8.0.0/16 --destination 8.8.8.8 --qps 500
 executed 65500, last ip: 128.8.255.219, results size: 0.58992mb, interval: 48.662986278533936s
@@ -14,6 +15,18 @@ avg name length: 21.842153441272384
 #timeouts: 5
 #noname: 48052
 Elapse time sending DNS queries: 12325.574210643768s
+
+# Success 2
+python3 rdns.py run --cidr 128.8.0.0/16 --destination 8.8.8.8
+avg name length: 21.846541745458712
+#names/#queries: 17451 / 65536
+#timeouts: 100
+#noname: 47985
+Elapse time sending DNS queries: 4618.8515367507935s
+writing results to /data/rdns.json
+Elapse time writing results to disk: 0.05539727210998535s
+wrote files to disk
+runtime: 4619.0649337768555
 """
 """
  SUCCEEDED CIDRS #ips
@@ -33,7 +46,7 @@ Elapse time sending DNS queries: 12325.574210643768s
     yes    /19   8,192
     yes    /18   16,384
     yes    /17   32,768
-    N/A    /16   65,536
+    yes    /16   65,536
     N/A    /15   131,072
     N/A    /14   262,144
     N/A    /13   524,288
@@ -61,6 +74,8 @@ Elapse time sending DNS queries: 12325.574210643768s
 # Todo: handle case where querying local DNS server and rescursive queries not support but the response tells the name of the DNS server to query example: 
 		# blox.net.umd.edu is a main umd dns server with ip 128.8.76.12
 		# dig @128.8.76.12 -x 128.8.73.251 will give response saying the names of the SOAs for 128.8.73.251 because recursive queries are not supported
+# Todo: determine max QPS with no rate limiting for current config
+
 
 """
 Situation:
@@ -141,21 +156,22 @@ def rdns(cidr='128.8.0.0/24', dns_server_ip='8.8.8.8', qps=None):
 		executed_queries += 1
 		if executed_queries % interval_queries == 0:
 			curr_time = time.time()
-			# Todo add real qps 
+			# Todo add qps/qpm metrics and #nonames, #timeouts, $names
 			print (f'executed {executed_queries}, last ip: {net}, results size: {sys.getsizeof(results) / 1000000}mb, interval: {curr_time-prev_time}s')
 			interval_time = curr_time - prev_time
 
 			# update wait
-			real_spq = interval_time / interval_queries
-			desired_spq = 60 / qps
-			if real_spq > desired_spq:				
-				delta_spq = real_spq - desired_spq
-				wait = wait - (delta_spq)
-				print (f'Sleep interval: {wait}s')
-			else:
-				delta_spq = desired_spq - real_spq 
-				wait = wait + (delta_spq)
-				print (f'Sleep interval: {wait}s')
+			if qps:
+				real_spq = interval_time / interval_queries
+				desired_spq = 60 / qps
+				if real_spq > desired_spq:				
+					delta_spq = real_spq - desired_spq
+					wait = wait - (delta_spq)
+					print (f'Sleep interval: {wait}s')
+				else:
+					delta_spq = desired_spq - real_spq 
+					wait = wait + (delta_spq)
+					print (f'Sleep interval: {wait}s')
 
 
 
@@ -164,10 +180,11 @@ def rdns(cidr='128.8.0.0/24', dns_server_ip='8.8.8.8', qps=None):
 			prev_time = time.time()
 
 		if qps:
-			time.sleep(wait)
+			time.sleep(abs(wait))
 
 	# print (f'{results}')
 	if len(results) > 0:
+		# TODO: add qps and qpm metric
 		print (f'avg name length: {total_name_chars / len(results)}')
 		print (f'#names/#queries: {len(results)} / {len(nets)}')
 		print (f'#timeouts: {len(failed_rdns_ips)}')
