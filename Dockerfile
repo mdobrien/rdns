@@ -5,7 +5,7 @@ ENV DEBIAN_FRONTEND noninteractive
 ENV TERM xterm
 
 RUN apt-get update -y \ 
- && apt-get install -qq -y iputils-ping dnsutils net-tools nano gcc git python3.8 python3.8-dev python3-distutils python3-setuptools \
+ && apt-get install -qq -y tcpdump iputils-ping dnsutils net-tools nano gcc git python3.8 python3.8-dev python3-distutils python3-setuptools \
  && apt-get clean \
  && rm -rf /tmp/* /var/lib/apt/lists/* /var/tmp/*
 
@@ -27,5 +27,5 @@ RUN pip3 --no-cache install --upgrade pip setuptools wheel scapy
 COPY rdns.py /root/rdns.py
 
 WORKDIR /root/
-ENTRYPOINT ['python3', '/root/rdns.py']
+# ENTRYPOINT ['python3', '/root/rdns.py']
 
