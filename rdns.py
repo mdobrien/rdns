@@ -6,6 +6,8 @@ import sys
 from scapy.all import *
 
 """
+
+
 # Sucess 1
 # pre dynamicly adjust wait based on interval time
 python3 rdns.py run --cidr 128.8.0.0/16 --destination 8.8.8.8 --qps 500
@@ -27,6 +29,9 @@ writing results to /data/rdns.json
 Elapse time writing results to disk: 0.05539727210998535s
 wrote files to disk
 runtime: 4619.0649337768555
+
+#Test 3 - aiodns
+	runs at ~33 qps
 """
 """
  SUCCEEDED CIDRS #ips
@@ -156,7 +161,7 @@ def rdns(cidr='128.8.0.0/24', dns_server_ip='8.8.8.8', qps=None):
 		executed_queries += 1
 		if executed_queries % interval_queries == 0:
 			curr_time = time.time()
-			# Todo add qps/qpm metrics and #nonames, #timeouts, $names
+			# Todo add qps/qpm metrics and #nonames, #timeouts, #names
 			print (f'executed {executed_queries}, last ip: {net}, results size: {sys.getsizeof(results) / 1000000}mb, interval: {curr_time-prev_time}s')
 			interval_time = curr_time - prev_time
 
