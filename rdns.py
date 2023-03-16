@@ -8,7 +8,7 @@ from scapy.all import *
 
 
 # ----------------------------------------
-# logging.basicConfig(filename='rdns.log', level=logging.DEBUG)
+import logging
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -17,8 +17,6 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
-log = logging
-
 # ----------------------------------------
 """
 
