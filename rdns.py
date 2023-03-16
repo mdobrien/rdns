@@ -4,6 +4,7 @@ import argparse
 import json
 import sys
 import logging
+import uuid
 from scapy.all import *
 
 
@@ -18,6 +19,8 @@ logging.basicConfig(
     ]
 )
 # ----------------------------------------
+# GLOBALS
+DATA_DIR = '/data/'
 """
 
 
@@ -115,6 +118,32 @@ def expand_cidr(cidr):
     return addresses
 
 
+def generate_run_id():
+	"""
+
+	Returns:
+		(str) : First 10 chars of hex of uuid4 string
+	"""
+	return uuid.uuid4().hex[:10]
+
+def generate_dump(results):
+	"""
+	Take the results of the all the reverse dns queries and write them to disk.
+	A directory is created in /data/ that will contain 3 files. 
+
+	/data/run_id/rdns.json -> is a JSON dumo of the results dict AKA rdns resutls of CIDRS looked up
+	/data/run_id/failed.txt -> list ip IP address where the DNS query timed out w/o a response
+	/data/run_id/noname.txt -> List of IPs that have no name or a .arpa name	
+	
+	Args:
+		results (dict) : Keys is ip address and value is hostname of IP
+	
+	Returns:
+		None
+	"""
+
+
+
 def rdns(cidr='128.8.0.0/24', dns_server_ip='8.8.8.8', qps=None):
 	"""
 	Executes a reverse dns look up on input cidr ips using specified dns server
@@ -204,6 +233,9 @@ def rdns(cidr='128.8.0.0/24', dns_server_ip='8.8.8.8', qps=None):
 		if qps:
 			time.sleep(abs(wait))
 
+	# get id used for run
+	run_id = generate_run_id()
+
 	# logging.debug (f'{results}')
 	if len(results) > 0:
 		# TODO: add qps and qpm metric
@@ -219,7 +251,7 @@ def rdns(cidr='128.8.0.0/24', dns_server_ip='8.8.8.8', qps=None):
 	log(failed_rdns_ips, noname_rdsn_ips)
 
 	logging.debug (f'writing results to {path}')
-	store_dns(results=results, path=path)
+	store_dns(results=results, run_id=run_id)
 	logging.debug (f'wrote files to disk')
 
 # Todo: create a new directory for each one. Store date, target cidr, dns resolver, plus results
@@ -244,7 +276,7 @@ def log(failed_rdns_ips=None, noname_rdsn_ips=None):
 		f.write(str(noname_rdsn_ips))
 
 
-def store_dns(results, path='/data/rdns.json'):
+def store_dns(results, run_id=None):
 	"""
 	Convert result data to json and write to disk
 
@@ -255,17 +287,18 @@ def store_dns(results, path='/data/rdns.json'):
 		bool: hard coded True value
 
 	"""
-	st = time.time()
+	path = DATA_DIR + run_id + '/'
+
+	logging.debug(f'run data path: {path}')
+	file = 'rdns.json'
+	st = time.time()	
 	results_json = json.dumps(results)
 
-	if not os.path.exists('/data'):
-		os.mkdir('/data')
-
-	if os.path.exists('/data/rdns.json'):
-		os.remove('/data/rdns.json')
+	if not os.path.exists(path):
+		os.mkdir(path)
 
 
-	with open('/data/rdns.json', 'w') as f:
+	with open(path + file, 'w') as f:
 		f.write(results_json)
 
 	logging.debug (f'Elapse time writing results to disk: {time.time() - st}s')
