@@ -39,19 +39,21 @@ runtime: 44.38510274887085
 
 
 # Test Networks
-128.2.0.0/16 	Carnegie Mellon University
-128.237.0.0/16  Carnegie Mellon University
-140.247.0.0/16 	Harvard University
-128.8.0.0/16 	University of Maryland
-129.2.0.0/16 	University of Maryland 
-147.222.0.0/16 	Gonzaga University 
+
+	128.2.0.0/16 	Carnegie Mellon University
+	128.237.0.0/16  Carnegie Mellon University
+	128.8.0.0/16 	University of Maryland
+	129.2.0.0/16 	University of Maryland 
+	147.222.0.0/16 	Gonzaga University 
+	140.247.0.0/16 	Harvard University
 
 # Test 1
 	python3 rdns.py run --cidr 128.2.0.0/16  --destination 1.1.1.1 --qps 500 # CMU
-	python3 rdns.py run --cidr 128.237.0.0/16  --destination 1.1.1.1 --qps 500 # CMU
+	python3 rdns.py run --cidr 128.237.0.0/22  --destination 1.1.1.1 --qps 500 # CMU
 	python3 rdns.py run --cidr 46.101.0.0/16 --destination 8.8.8.8 --qps 500 # digital ocean
 	python3 rdns.py run --cidr 140.247.0.0/16  --destination 1.1.1.1 --qps 500 # harvard
 	python3 rdns.py run --cidr 128.8.0.0/16 --destination 1.1.1.1 --qps 500 # UMD
+	python3 rdns.py run --cidr 128.8.0.0/24 --destination 1.1.1.1 # UMD
 	python3 rdns.py run --cidr 129.2.0.0/16  --destination 1.1.1.1 --qps 500 # UMD
 	python3 rdns.py run --cidr 147.222.0.0/16  --destination 1.1.1.1 --qps 500 # Gonzaga University
 
