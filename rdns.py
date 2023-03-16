@@ -3,8 +3,23 @@ import time
 import argparse
 import json
 import sys
+import logging
 from scapy.all import *
 
+
+# ----------------------------------------
+# logging.basicConfig(filename='rdns.log', level=logging.DEBUG)
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler("debug.log"),
+        logging.StreamHandler()
+    ]
+)
+log = logging
+
+# ----------------------------------------
 """
 
 
@@ -120,9 +135,13 @@ def rdns(cidr='128.8.0.0/24', dns_server_ip='8.8.8.8', qps=None):
 	# TODO: calculate actually rate dns packets are being sent/recv
 	# Assums dns lookup is constant time 
 	# wait 60s / qps to get time to pause in between rdns request
+	wait = None
 	if qps:
 		wait = 60 / qps
-		print (f'Sleep interval: {wait}s')
+	# breakpoint()
+	# log.debug(f'Sleep interval: {wait!r}s')
+	logging.debug(f'Sleep interval: {wait}s')
+
 
 	total_name_chars = 0
 	executed_queries = 0
@@ -148,8 +167,8 @@ def rdns(cidr='128.8.0.0/24', dns_server_ip='8.8.8.8', qps=None):
 			name = ans.an.rdata.decode("utf-8") 
 			results[net] = name
 			total_name_chars += len(name)
-			# print (f'name: {type(name)}, {name}')
-			# print (f'net: {type(net)}, {net}')
+			# logging.debug (f'name: {type(name)}, {name}')
+			# logging.debug (f'net: {type(net)}, {net}')
 		else:
 			# executes when ip does not have a name in proper dns response
 			# Todo: verify the statement above is correct
@@ -162,7 +181,7 @@ def rdns(cidr='128.8.0.0/24', dns_server_ip='8.8.8.8', qps=None):
 		if executed_queries % interval_queries == 0:
 			curr_time = time.time()
 			# Todo add qps/qpm metrics and #nonames, #timeouts, #names
-			print (f'executed {executed_queries}, last ip: {net}, results size: {sys.getsizeof(results) / 1000000}mb, interval: {curr_time-prev_time}s')
+			logging.debug (f'executed {executed_queries}, last ip: {net}, results size: {sys.getsizeof(results) / 1000000}mb, interval: {curr_time-prev_time}s')
 			interval_time = curr_time - prev_time
 
 			# update wait
@@ -172,11 +191,11 @@ def rdns(cidr='128.8.0.0/24', dns_server_ip='8.8.8.8', qps=None):
 				if real_spq > desired_spq:				
 					delta_spq = real_spq - desired_spq
 					wait = wait - (delta_spq)
-					print (f'Sleep interval: {wait}s')
+					logging.debug (f'Sleep interval: {wait}s')
 				else:
 					delta_spq = desired_spq - real_spq 
 					wait = wait + (delta_spq)
-					print (f'Sleep interval: {wait}s')
+					logging.debug (f'Sleep interval: {wait}s')
 
 
 
@@ -187,23 +206,23 @@ def rdns(cidr='128.8.0.0/24', dns_server_ip='8.8.8.8', qps=None):
 		if qps:
 			time.sleep(abs(wait))
 
-	# print (f'{results}')
+	# logging.debug (f'{results}')
 	if len(results) > 0:
 		# TODO: add qps and qpm metric
-		print (f'avg name length: {total_name_chars / len(results)}')
-		print (f'#names/#queries: {len(results)} / {len(nets)}')
-		print (f'#timeouts: {len(failed_rdns_ips)}')
-		print (f'#noname: {len(noname_rdsn_ips)}')
+		logging.debug (f'avg name length: {total_name_chars / len(results)}')
+		logging.debug (f'#names/#queries: {len(results)} / {len(nets)}')
+		logging.debug (f'#timeouts: {len(failed_rdns_ips)}')
+		logging.debug (f'#noname: {len(noname_rdsn_ips)}')
 	else:
-		print (f'#results: 0')
-	print(f'Elapse time sending DNS queries: {time.time() - st}s')
+		logging.debug (f'#results: 0')
+	logging.debug(f'Elapse time sending DNS queries: {time.time() - st}s')
 
 	path = '/data/rdns.json'
 	log(failed_rdns_ips, noname_rdsn_ips)
 
-	print (f'writing results to {path}')
+	logging.debug (f'writing results to {path}')
 	store_dns(results=results, path=path)
-	print (f'wrote files to disk')
+	logging.debug (f'wrote files to disk')
 
 # Todo: create a new directory for each one. Store date, target cidr, dns resolver, plus results
 def log(failed_rdns_ips=None, noname_rdsn_ips=None):
@@ -251,7 +270,7 @@ def store_dns(results, path='/data/rdns.json'):
 	with open('/data/rdns.json', 'w') as f:
 		f.write(results_json)
 
-	print (f'Elapse time writing results to disk: {time.time() - st}s')
+	logging.debug (f'Elapse time writing results to disk: {time.time() - st}s')
 
 	return True
 
@@ -266,7 +285,7 @@ def cli_rdns(args):
 	conf.verb = 0 # disable scapy debug statements
 	rdns(cidr=args.cidr, dns_server_ip=args.destination, qps=args.qps)
 
-	print (f'runtime: {time.time() - start}')
+	logging.debug (f'runtime: {time.time() - start}')
 
 # ------------------------------------------------------------------------
 
@@ -287,7 +306,7 @@ if __name__ == "__main__":
     if hasattr(args, 'func'):
         args.func(args)
     else:
-        parser.print_help()
+        parser.logging.debug_help()
     # -----------------------------------
     sys.exit()
 #--------------------------------------------------------------------------------
