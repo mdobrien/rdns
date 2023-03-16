@@ -245,38 +245,11 @@ def rdns(cidr='128.8.0.0/24', dns_server_ip='8.8.8.8', qps=None):
 		logging.debug (f'#noname: {len(noname_rdsn_ips)}')
 	else:
 		logging.debug (f'#results: 0')
-	logging.debug(f'Elapse time sending DNS queries: {time.time() - st}s')
+	logging.debug(f'Elapse time sending DNS queries: {time.time() - st:.2f}s')
 
-	path = '/data/rdns.json'
-	log(failed_rdns_ips, noname_rdsn_ips)
+	store_dns(failed_rdns_ips=failed_rdns_ips, noname_rdsn_ips=noname_rdsn_ips, results=results, run_id=run_id)
 
-	logging.debug (f'writing results to {path}')
-	store_dns(results=results, run_id=run_id)
-	logging.debug (f'wrote files to disk')
-
-# Todo: create a new directory for each one. Store date, target cidr, dns resolver, plus results
-def log(failed_rdns_ips=None, noname_rdsn_ips=None):
-
-	failed_rdns_ips_path = '/data/failed.txt'
-	noname_rdns_ips_path = '/data/noname.txt'
-
-	if not os.path.exists('/data/'):
-		os.mkdir('/data')
-
-	if os.path.exists(failed_rdns_ips_path):
-		os.remove(failed_rdns_ips_path)
-
-	if os.path.exists(noname_rdns_ips_path):
-		os.remove(noname_rdns_ips_path)
-
-	with open(failed_rdns_ips_path, 'w') as f:
-		f.write(str(failed_rdns_ips))
-
-	with open(noname_rdns_ips_path, 'w') as f:
-		f.write(str(noname_rdsn_ips))
-
-
-def store_dns(results, run_id=None):
+def store_dns(failed_rdns_ips=None, noname_rdsn_ips=None, results=None, run_id=None):
 	"""
 	Convert result data to json and write to disk
 
@@ -289,7 +262,7 @@ def store_dns(results, run_id=None):
 	"""
 	path = DATA_DIR + run_id + '/'
 
-	logging.debug(f'run data path: {path}')
+	logging.debug (f'writing results to {path}')
 	file = 'rdns.json'
 	st = time.time()	
 	results_json = json.dumps(results)
@@ -301,7 +274,17 @@ def store_dns(results, run_id=None):
 	with open(path + file, 'w') as f:
 		f.write(results_json)
 
-	logging.debug (f'Elapse time writing results to disk: {time.time() - st}s')
+	logging.debug (f'Elapse time writing results to disk: {time.time() - st:.2f}s')
+
+	failed_rdns_ips_path = path + 'failed.txt'
+	noname_rdns_ips_path = path + 'noname.txt'
+
+
+	with open(failed_rdns_ips_path, 'w') as f:
+		f.write(str(failed_rdns_ips))
+
+	with open(noname_rdns_ips_path, 'w') as f:
+		f.write(str(noname_rdsn_ips))
 
 	return True
 
@@ -314,9 +297,10 @@ def cli_rdns(args):
 	"""
 	start = time.time()
 	conf.verb = 0 # disable scapy debug statements
+	logging.debug(f'cidr={args.cidr}, dns_server_ip={args.destination}, qps={args.qps}')
 	rdns(cidr=args.cidr, dns_server_ip=args.destination, qps=args.qps)
 
-	logging.debug (f'runtime: {time.time() - start}')
+	logging.debug (f'runtime: {time.time() - start:.2f}')
 
 # ------------------------------------------------------------------------
 
