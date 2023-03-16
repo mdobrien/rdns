@@ -126,21 +126,7 @@ def generate_run_id():
 	"""
 	return uuid.uuid4().hex[:10]
 
-def generate_dump(results):
-	"""
-	Take the results of the all the reverse dns queries and write them to disk.
-	A directory is created in /data/ that will contain 3 files. 
 
-	/data/run_id/rdns.json -> is a JSON dumo of the results dict AKA rdns resutls of CIDRS looked up
-	/data/run_id/failed.txt -> list ip IP address where the DNS query timed out w/o a response
-	/data/run_id/noname.txt -> List of IPs that have no name or a .arpa name	
-	
-	Args:
-		results (dict) : Keys is ip address and value is hostname of IP
-	
-	Returns:
-		None
-	"""
 
 
 
@@ -225,9 +211,6 @@ def rdns(cidr='128.8.0.0/24', dns_server_ip='8.8.8.8', qps=None):
 					logging.debug (f'Sleep interval: {wait}s')
 
 
-
-
-
 			prev_time = time.time()
 
 		if qps:
@@ -251,14 +234,18 @@ def rdns(cidr='128.8.0.0/24', dns_server_ip='8.8.8.8', qps=None):
 
 def store_dns(failed_rdns_ips=None, noname_rdsn_ips=None, results=None, run_id=None):
 	"""
-	Convert result data to json and write to disk
+	Convert result data to json and write to disk. Take the results of the all the reverse dns queries and write them to disk.
+	A directory is created in /data/ that will contain 3 files. 
 
+	/data/run_id/rdns.json -> is a JSON dumo of the results dict AKA rdns resutls of CIDRS looked up
+	/data/run_id/failed.txt -> list ip IP address where the DNS query timed out w/o a response
+	/data/run_id/noname.txt -> List of IPs that have no name or a .arpa name	
+	
 	Args:
-	    results (dict): Key=IPV4 address and value is the host name of the ipv4 address
-
+		results (dict) : Keys is ip address and value is hostname of IP
+	
 	Returns:
 		bool: hard coded True value
-
 	"""
 	path = DATA_DIR + run_id + '/'
 
