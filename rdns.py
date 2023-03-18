@@ -289,6 +289,20 @@ def cli_rdns(args):
 
 	logging.debug (f'runtime: {time.time() - start:.2f}')
 
+def cli_clean(args):
+	logging.info(f'{args!r}')
+
+
+	if os.path.exists(DATA_DIR):
+		contents = os.listdir(DATA_DIR)
+		for folder in contents:
+			path = DATA_DIR + folder + '/'
+			if folder in args.keep:
+				for file in os.listdir(path):
+					os.remove(path + file)
+					logging.debug(f'removed: {path+file}')
+				os.rmdir(path)
+				logging.debug(f'removed: {path}')
 # ------------------------------------------------------------------------
 
 if __name__ == "__main__":
@@ -296,6 +310,10 @@ if __name__ == "__main__":
 	    
     parser = argparse.ArgumentParser()
     subparser = parser.add_subparsers()
+
+    rdns_parser = subparser.add_parser('clean')
+    rdns_parser.add_argument('keep', nargs='+')
+    rdns_parser.set_defaults(func=cli_clean)
 
     rdns_parser = subparser.add_parser('run')
     rdns_parser.add_argument('-d','--destination')
