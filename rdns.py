@@ -4,7 +4,6 @@ import argparse
 import json
 import sys
 import logging
-import uuid
 from scapy.all import *
 
 
@@ -124,7 +123,15 @@ def generate_run_id():
 	Returns:
 		(str) : First 10 chars of hex of uuid4 string
 	"""
-	return uuid.uuid4().hex[:10]
+	import datetime
+	# print (f'{dir(datetime.datetime.now())}')
+	date = str(datetime.datetime.now())
+	date = date.replace(' ', '-')
+	idx = date.find('.')
+	date = date[5:idx]
+	logging.info(f'{date}')
+	return date
+	# return uuid.uuid4().hex[:10]
 
 
 
@@ -275,8 +282,6 @@ def store_dns(failed_rdns_ips=None, noname_rdsn_ips=None, results=None, run_id=N
 
 	return True
 
-
-
 # ------------------------------------------------------------------------
 def cli_rdns(args):
 	"""
@@ -290,19 +295,43 @@ def cli_rdns(args):
 	logging.debug (f'runtime: {time.time() - start:.2f}')
 
 def cli_clean(args):
-	logging.info(f'{args!r}')
-
-
+	"""
+		This function will remove all directories in DATA_HOME
+		except for files specified to be keep 
+		example invocation: python3 rdns.py clean keep dir1 dir 2 
+		This will remove all dirs in DATA_HOME except dir1 and dir2
+	Args:
+	Returns:
+		Nothing
+	"""
+	logging.info(f'data_dir: {DATA_DIR}')
 	if os.path.exists(DATA_DIR):
 		contents = os.listdir(DATA_DIR)
 		for folder in contents:
 			path = DATA_DIR + folder + '/'
+			logging.info(f'data_dir: {path}')
+			# breakpoint()
 			if folder in args.keep:
 				for file in os.listdir(path):
 					os.remove(path + file)
 					logging.debug(f'removed: {path+file}')
 				os.rmdir(path)
 				logging.debug(f'removed: {path}')
+
+def cli_test(args):
+	if os.path.exists(DATA_DIR):
+			contents = os.listdir(DATA_DIR)
+			for folder in contents:
+				path = DATA_DIR + folder + '/'
+				logging.info(f'data_dir: {path}')
+				for file in os.listdir(path):
+					logging.debug(f'{path + file}')
+					os.remove(path + file)
+				os.rmdir(path)
+				# breakpoint()
+	
+	pass
+
 # ------------------------------------------------------------------------
 
 if __name__ == "__main__":
@@ -312,7 +341,7 @@ if __name__ == "__main__":
     subparser = parser.add_subparsers()
 
     rdns_parser = subparser.add_parser('clean')
-    rdns_parser.add_argument('keep', nargs='+')
+    rdns_parser.add_argument('--keep', nargs='+', required=False)
     rdns_parser.set_defaults(func=cli_clean)
 
     rdns_parser = subparser.add_parser('run')
@@ -320,6 +349,9 @@ if __name__ == "__main__":
     rdns_parser.add_argument('-c','--cidr', type=str)
     rdns_parser.add_argument('-q','--qps', type=int)
     rdns_parser.set_defaults(func=cli_rdns)
+
+    rdns_parser = subparser.add_parser('test')
+    rdns_parser.set_defaults(func=cli_test)
     
     args = parser.parse_args()
     # -----------------------------------
