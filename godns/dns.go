@@ -98,6 +98,14 @@ func main() {
 
     */
 
+    // TODO: parse cnx details from input params
+    // TODO: Connect to master node and listen for tasking
+    // TODO: parse tasking message from master
+    // TODO: dispatch tasking to work thread
+    // TODO: send dns results to mysql db
+
+    // TODO: test cnx to storage node
+    // TODO: add rate limiting 
     var wg sync.WaitGroup
     var prefixes = []string{
         "128.8.0.",
@@ -116,8 +124,8 @@ func main() {
 
         go func(prefix string) {
             defer wg.Done()
-            lookUpSlash24(prefix, "8.8.4.4")
-            // lookUpSlash24(prefix, "1.1.1.1")
+            ipToName := lookUpSlash24(prefix, "8.8.4.4")
+            // TODO:  sendToDB(ipToName)
         }(prefix)
     }
     wg.Wait()
