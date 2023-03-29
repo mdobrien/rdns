@@ -106,7 +106,17 @@ Situation:
 """
 
 
-
+def cidr_to_24(cidr):
+    # Parse the input CIDR string
+    network = ipaddress.ip_network(cidr)
+    
+    # Create a list of /24 CIDRs contained within the input CIDR
+    cidr_list = []
+    for subnet in network.subnets(new_prefix=24):
+        cidr_list.append(str(subnet))
+    
+    return cidr_list
+    
 def expand_cidr(cidr):
     """
     Expands a CIDR notation for an IPv4 network to a list of IP addresses
