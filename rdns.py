@@ -25,7 +25,7 @@ DATA_DIR = '/data/'
 
 # Sucess 1
 # pre dynamicly adjust wait based on interval time
-python3 rdns.py run --cidr 128.8.0.0/16 --destination 8.8.8.8 --qps 500
+python3 rdns.py run --cidr 128.8.0.0/16 --resolvers 8.8.8.8 --qps 500
 executed 65500, last ip: 128.8.255.219, results size: 0.58992mb, interval: 48.662986278533936s
 avg name length: 21.842153441272384
 #names/#queries: 17479 / 65536
@@ -34,7 +34,7 @@ avg name length: 21.842153441272384
 Elapse time sending DNS queries: 12325.574210643768s
 
 # Success 2
-python3 rdns.py run --cidr 128.8.0.0/16 --destination 8.8.8.8
+python3 rdns.py run --cidr 128.8.0.0/16 --resolvers 8.8.8.8
 avg name length: 21.846541745458712
 #names/#queries: 17451 / 65536
 #timeouts: 100
@@ -116,7 +116,7 @@ def cidr_to_24(cidr):
         cidr_list.append(str(subnet))
     
     return cidr_list
-    
+
 def expand_cidr(cidr):
     """
     Expands a CIDR notation for an IPv4 network to a list of IP addresses
@@ -299,8 +299,14 @@ def cli_rdns(args):
 	"""
 	start = time.time()
 	conf.verb = 0 # disable scapy debug statements
-	logging.debug(f'cidr={args.cidr}, dns_server_ip={args.destination}, qps={args.qps}')
-	rdns(cidr=args.cidr, dns_server_ip=args.destination, qps=args.qps)
+	logging.debug(f'cidr={args.cidrs}, dns_server_ip={args.resolvers}, qps={args.qps}, workers={args.workers}')
+	# Todo  master - add num clients as param that gets parsed
+	# TODO: master - generate tasking messages
+	# TODO: master - init worker nodes
+	# TODO: master - send tasking msg to worker nodes
+	# TODO: master - establisg cnx to worker nodes
+	# TODO: master - send tasking to worker nodes
+	# rdns(cidr=args.cidr, dns_server_ip=args.resolvers, qps=args.qps)
 
 	logging.debug (f'runtime: {time.time() - start:.2f}')
 
@@ -355,9 +361,10 @@ if __name__ == "__main__":
     rdns_parser.set_defaults(func=cli_clean)
 
     rdns_parser = subparser.add_parser('run')
-    rdns_parser.add_argument('-d','--destination')
-    rdns_parser.add_argument('-c','--cidr', type=str)
+    rdns_parser.add_argument('-d','--resolvers', nargs='+', required=False)
+    rdns_parser.add_argument('-c','--cidrs', nargs='+', required=False)
     rdns_parser.add_argument('-q','--qps', type=int)
+    rdns_parser.add_argument('-w','--workers', type=int)
     rdns_parser.set_defaults(func=cli_rdns)
 
     rdns_parser = subparser.add_parser('test')
