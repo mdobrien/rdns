@@ -124,7 +124,8 @@ func main() {
 
         go func(prefix string) {
             defer wg.Done()
-            ipToName := lookUpSlash24(prefix, "8.8.4.4")
+            lookUpSlash24(prefix, "8.8.4.4")
+            // ipToName := lookUpSlash24(prefix, "8.8.4.4")
             // TODO:  sendToDB(ipToName)
         }(prefix)
     }

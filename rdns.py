@@ -4,8 +4,9 @@ import argparse
 import json
 import sys
 import logging
-from scapy.all import *
-
+import os
+# from scapy.all import *
+import math
 
 # ----------------------------------------
 import logging
@@ -292,13 +293,57 @@ def store_dns(failed_rdns_ips=None, noname_rdsn_ips=None, results=None, run_id=N
 
 	return True
 
+def generate_tasking(cidrs, resolvers):
+	# split cidrs to /24s
+	# split nets equally among resolvers
+	nets = []
+	for cidr in cidrs:
+		nets += cidr_to_24(cidr)
+	logging.debug(f'size={len(nets)} nets={nets}')
+
+	pivot = math.ceil(len(nets) / len(resolvers))
+
+	tasking = dict()
+	start = 0
+	end = pivot
+	for resolver in resolvers:
+		partition = nets[start:end]
+		logging.debug(f'start={start}, end={end} size={len(partition)} partition={partition}')
+
+		start += pivot
+		end += pivot
+		if partition:
+			tasking[resolver] = partition
+		else:
+			logging.info(f'No tasking sent to {resolver}')
+
+		logging.debug(f'{tasking!r}')
+
+
+def godns(cidrs):
+
+	# TODO: handle more than one CIDR
+	if len(cidrs) > 0:
+		cidr = cidrs[0]
+		cmd = f'go run /root/godns/dns.go {cidr}'
+		logging.info(f'Execute: {cmd}')
+		os.system(cmd)
+
+
+# ------------------------------------------------------------------------
+def cli_rdns_go(args):
+	cidrs = args.cidrs
+	godns(cidrs)
 # ------------------------------------------------------------------------
 def cli_rdns(args):
 	"""
 	Invoed by running rdns from the commandline
 	"""
+	cidrs = args.cidrs
+	resolvers = args.resolvers
+
 	start = time.time()
-	conf.verb = 0 # disable scapy debug statements
+	# conf.verb = 0 # disable scapy debug statements
 	logging.debug(f'cidr={args.cidrs}, dns_server_ip={args.resolvers}, qps={args.qps}, workers={args.workers}')
 	# Todo  master - add num clients as param that gets parsed
 	# TODO: master - generate tasking messages
@@ -307,6 +352,7 @@ def cli_rdns(args):
 	# TODO: master - establisg cnx to worker nodes
 	# TODO: master - send tasking to worker nodes
 	# rdns(cidr=args.cidr, dns_server_ip=args.resolvers, qps=args.qps)
+	generate_tasking(cidrs, resolvers)
 
 	logging.debug (f'runtime: {time.time() - start:.2f}')
 
@@ -343,8 +389,8 @@ def cli_test(args):
 				for file in os.listdir(path):
 					logging.debug(f'{path + file}')
 					os.remove(path + file)
-				os.rmdir(path)
-				# breakpoint()
+				# os.rmdir(path)
+				breakpoint()
 	
 	pass
 
@@ -365,7 +411,7 @@ if __name__ == "__main__":
     rdns_parser.add_argument('-c','--cidrs', nargs='+', required=False)
     rdns_parser.add_argument('-q','--qps', type=int)
     rdns_parser.add_argument('-w','--workers', type=int)
-    rdns_parser.set_defaults(func=cli_rdns)
+    rdns_parser.set_defaults(func=cli_rdns_go)
 
     rdns_parser = subparser.add_parser('test')
     rdns_parser.set_defaults(func=cli_test)
