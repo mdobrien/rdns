@@ -114,7 +114,7 @@ def cidr_to_24(cidr):
     # Create a list of /24 CIDRs contained within the input CIDR
     cidr_list = []
     for subnet in network.subnets(new_prefix=24):
-        cidr_list.append(str(subnet))
+        cidr_list.append(str(subnet)[:-4])
     
     return cidr_list
 
@@ -299,7 +299,7 @@ def generate_tasking(cidrs, resolvers):
 	nets = []
 	for cidr in cidrs:
 		nets += cidr_to_24(cidr)
-	logging.debug(f'size={len(nets)} nets={nets}')
+	# logging.debug(f'size={len(nets)} nets={nets}')
 
 	pivot = math.ceil(len(nets) / len(resolvers))
 
@@ -308,7 +308,7 @@ def generate_tasking(cidrs, resolvers):
 	end = pivot
 	for resolver in resolvers:
 		partition = nets[start:end]
-		logging.debug(f'start={start}, end={end} size={len(partition)} partition={partition}')
+		# logging.debug(f'start={start}, end={end} size={len(partition)} partition={partition}')
 
 		start += pivot
 		end += pivot
@@ -317,44 +317,66 @@ def generate_tasking(cidrs, resolvers):
 		else:
 			logging.info(f'No tasking sent to {resolver}')
 
-		logging.debug(f'{tasking!r}')
+		# logging.debug(f'{tasking!r}')
+	tasking = json.dumps(tasking)
+
+	return tasking
 
 
-def godns(cidrs):
+def godns(cidrs, resolvers, workers, qps):
 
 	# TODO: handle more than one CIDR
-	if len(cidrs) > 0:
-		cidr = cidrs[0]
-		cmd = f'go run /root/godns/dns.go {cidr}'
-		logging.info(f'Execute: {cmd}')
+	# TODO: create work message
+	# TODO: sent tasking message to worker from master
+	# Todo: recv tasking msg and parse it
+	# Todo: dispacht tasking to multhreading asynchronous rdns lookup
+	if len(cidrs) > 0 and len(resolvers):
+
+		tasking = generate_tasking(cidrs, resolvers)
+
+		with open('/root/tasking.json', 'w') as f:
+			f.write(tasking)
+
+		# logging.info(f'{tasking!r}')
+		# cidr = cidrs[0]
+		cmd = f'go run /root/godns/dns.go'
 		os.system(cmd)
+		logging.info(f'Execute: {cmd}')
 
 
 # ------------------------------------------------------------------------
 def cli_rdns_go(args):
 	cidrs = args.cidrs
-	godns(cidrs)
-# ------------------------------------------------------------------------
-def cli_rdns(args):
-	"""
-	Invoed by running rdns from the commandline
-	"""
-	cidrs = args.cidrs
 	resolvers = args.resolvers
+	qps = args.qps
+	workers = args.workers
 
 	start = time.time()
-	# conf.verb = 0 # disable scapy debug statements
-	logging.debug(f'cidr={args.cidrs}, dns_server_ip={args.resolvers}, qps={args.qps}, workers={args.workers}')
-	# Todo  master - add num clients as param that gets parsed
-	# TODO: master - generate tasking messages
-	# TODO: master - init worker nodes
-	# TODO: master - send tasking msg to worker nodes
-	# TODO: master - establisg cnx to worker nodes
-	# TODO: master - send tasking to worker nodes
-	# rdns(cidr=args.cidr, dns_server_ip=args.resolvers, qps=args.qps)
-	generate_tasking(cidrs, resolvers)
-
+	godns(cidrs, resolvers, workers, qps)
 	logging.debug (f'runtime: {time.time() - start:.2f}')
+# ------------------------------------------------------------------------
+# def cli_rdns(args):
+# 	"""
+# 	Invoed by running rdns from the commandline
+# 	"""
+# 	cidrs = args.cidrs
+# 	resolvers = args.resolvers
+# 	qps = args.qps
+# 	workers = args.workers
+
+# 	start = time.time()
+# 	# conf.verb = 0 # disable scapy debug statements
+# 	logging.debug(f'cidr={args.cidrs}, dns_server_ip={args.resolvers}, qps={args.qps}, workers={args.workers}')
+# 	# Todo  master - add num clients as param that gets parsed
+# 	# TODO: master - generate tasking messages
+# 	# TODO: master - init worker nodes
+# 	# TODO: master - send tasking msg to worker nodes
+# 	# TODO: master - establisg cnx to worker nodes
+# 	# TODO: master - send tasking to worker nodes
+# 	# rdns(cidr=args.cidr, dns_server_ip=args.resolvers, qps=args.qps)
+# 	generate_tasking(cidrs, resolvers, workers, qps)
+
+# 	logging.debug (f'runtime: {time.time() - start:.2f}')
 
 def cli_clean(args):
 	"""
