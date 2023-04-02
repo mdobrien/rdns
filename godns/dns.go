@@ -11,6 +11,7 @@ import (
     "sync"
     // "json"
     "encoding/json"
+    "time"
     // "reflect"
 )
 
@@ -32,7 +33,17 @@ func rdns(lookupIP string, dnsServer string) (string) {
     // fmt.Println(lookupIP, dnsServer)
 
     // create client
-    c := dns.Client{}
+    // c := dns.Client{}
+    c := new(dns.Client)
+    laddr := net.UDPAddr{
+        IP: net.ParseIP("[::1]"),
+        Port: 12345,
+        Zone: "",
+    }
+    c.Dialer = &net.Dialer{
+        Timeout: 200 * time.Millisecond,
+        LocalAddr: &laddr,
+    }
 
 
     ip := net.ParseIP(lookupIP)  // Todo: check if this is redundent
@@ -46,10 +57,10 @@ func rdns(lookupIP string, dnsServer string) (string) {
     msg.SetQuestion(rev, dns.TypePTR)
     resp, _, err := c.Exchange(&msg, dnsServer+":53")
     if err != nil {
-        fmt.Println(err)
+        fmt.Println("ERROR", err, "ip: ",ip, "resolver: ", dnsServer)
     }
     if resp == nil {
-        fmt.Println(ip,"-", dnsServer,"failed PTR look up")
+        // fmt.Println(ip,"-", dnsServer,"failed PTR look up")
         return ""
     }
 
@@ -86,6 +97,7 @@ func lookUpSlash24(prefix string, dnsServer string) (map[string]string) {
     */
     var ipToName = make(map[string]string)
     for i := 0; i <= 255; i++ {
+    // for i := 0; i <= 255; i++ {
         ip := prefix + strconv.Itoa(i)
         // fmt.Println(ip)
         res := rdns(ip,dnsServer)
@@ -148,11 +160,11 @@ func main() {
     /*
 
     */
-    fmt.Println("test - test")
     tasking := recv_tasking("/root/tasking.json")
     fmt.Println(tasking)
     var wg sync.WaitGroup
 
+    i := 0
     for _, task := range tasking {
         // fmt.Println(task)
         wg.Add(1)
@@ -162,6 +174,12 @@ func main() {
             // fmt.Println(task)
             lookUpSlash24(task.cidr, task.resolver)
         }(task)
+
+        if i % 10 == 0 {
+            time.Sleep(5 * time.Second)
+        }
+
+        i++
     }
     wg.Wait()
 
@@ -170,35 +188,8 @@ func main() {
     // TODO: parse tasking message from master
     // TODO: dispatch tasking to work thread
     // TODO: send dns results to mysql db
-
     // TODO: test cnx to storage node
     // TODO: add rate limiting 
-
-    // var wg sync.WaitGroup
-    // var prefixes = []string{
-    //     "128.8.0.",
-    //     // "128.8.1.",
-    //     // "128.8.2.",
-    //     // "128.8.3.",
-    //     // "128.8.4.",
-    //     // "128.8.5.",
-    //     // "128.8.6.",
-    //     // "128.8.7.",
-    //     // "128.8.8.",
-    //     // "128.8.9.",
-    // }
-    // for _, prefix := range prefixes {
-    //     wg.Add(1)
-
-    //     go func(prefix string) {
-    //         defer wg.Done()
-    //         lookUpSlash24(prefix, "8.8.4.4")
-    //         // ipToName := lookUpSlash24(prefix, "8.8.4.4")
-    //         // TODO:  sendToDB(ipToName)
-    //     }(prefix)
-    // }
-    // wg.Wait()
-
 
 
 
