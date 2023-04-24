@@ -20,10 +20,8 @@ docker build -t rdns .
 docker run -ti --volume $RDNS_HOME/rdns.py:/root/rdns.py --volume $RDNS_HOME/godns:/root/godns rdns bash
 cd godns
 
-
-
 # example run
-python3 ../rdns.py run --cidr 128.8.0.0/24 --resolvers 1.1.1.1 --qps 500
+python3 ../rdns.py run --cidr 128.8.0.0/23 --resolvers 1.1.1.1 --qps 500
 
 ```
 
@@ -41,7 +39,6 @@ runtime: 44.38510274887085
 
 
 # Test Networks
-
 	128.2.0.0/16 	Carnegie Mellon University
 	128.237.0.0/16  Carnegie Mellon University
 	128.8.0.0/16 	University of Maryland
@@ -50,24 +47,19 @@ runtime: 44.38510274887085
 	140.247.0.0/16 	Harvard University
 
 # Test 1
-	python3 rdns.py run --cidr 128.2.0.0/16  --resolvers 1.1.1.1 --qps 500 # CMU
-	python3 rdns.py run --cidr 128.237.0.0/22  --resolvers 1.1.1.1 --qps 500 # CMU
-	python3 rdns.py run --cidr 46.101.0.0/16 --resolvers 8.8.8.8 --qps 500 # digital ocean
-	python3 rdns.py run --cidr 140.247.0.0/16  --resolvers 1.1.1.1 --qps 500 # harvard
-	python3 rdns.py run --cidr 128.8.0.0/16 --resolvers 1.1.1.1 --qps 500 # UMD
-	python3 rdns.py run --cidr 128.8.0.0/24 --resolvers 1.1.1.1 # UMD
-	python3 rdns.py run --cidr 129.2.0.0/16  --resolvers 1.1.1.1 --qps 500 # UMD
-	python3 rdns.py run --cidr 147.222.0.0/16  --resolvers 1.1.1.1 --qps 500 # Gonzaga University
+	python3 ../rdns.py run --cidr 128.2.0.0/16  --resolvers 1.1.1.1 --qps 500 # CMU
+	python3 ../rdns.py run --cidr 128.237.0.0/22  --resolvers 1.1.1.1 --qps 500 # CMU
+	python3 ../rdns.py run --cidr 46.101.0.0/16 --resolvers 8.8.8.8 --qps 500 # digital ocean
+	python3 ../rdns.py run --cidr 140.247.0.0/16  --resolvers 1.1.1.1 --qps 500 # harvard
+	python3 ../rdns.py run --cidr 128.8.0.0/16 --resolvers 1.1.1.1 --qps 500 # UMD
+	python3 ../rdns.py run --cidr 128.8.0.0/24 --resolvers 1.1.1.1 # UMD
+	python3 ../rdns.py run --cidr 129.2.0.0/16  --resolvers 1.1.1.1 --qps 500 # UMD
+	python3 ../rdns.py run --cidr 147.222.0.0/16  --resolvers 1.1.1.1 --qps 500 # Gonzaga University
 
-	questions
-	  - will this complete?
-	  -how long will it take?
-	  - is the data correct?
+	# good test
+	python3 ../rdns.py run --cidr 128.2.0.0/19 --resolvers 1.0.0.1 1.1.1.1 8.8.4.4 8.8.8.8 208.67.220.220 208.67.222.222 216.146.35.35 --workers 5 --qps 500
 
-
-
-
-	python3 rdns.py run --cidr 128.8.0.0/16 --resolvers 1.0.0.1 1.1.1.1 134.195.4.2 149.112.112.112 185.228.168.9 185.228.169.9 195.46.39.39 195.46.39.40 205.171.2.65 205.171.3.65 208.67.220.220 208.67.222.222 216.146.35.35 216.146.36.36 64.6.64.6 64.6.65.6 74.82.42.42 76.223.122.150 76.76.10.0 76.76.19.19 76.76.2.0 77.88.8.1 77.88.8.8 8.20.247.20 8.26.56.26 8.8.4.4 8.8.8.8 84.200.69.80 84.200.70.40 9.9.9.9 --workers 5 --qps 500
+	python3 ../rdns.py run --cidr 128.8.0.0/16 --resolvers 1.0.0.1 1.1.1.1 134.195.4.2 149.112.112.112 185.228.168.9 185.228.169.9 195.46.39.39 195.46.39.40 205.171.2.65 205.171.3.65 208.67.220.220 208.67.222.222 216.146.35.35 216.146.36.36 64.6.64.6 64.6.65.6 74.82.42.42 76.223.122.150 76.76.10.0 76.76.19.19 76.76.2.0 77.88.8.1 77.88.8.8 8.20.247.20 8.26.56.26 8.8.4.4 8.8.8.8 84.200.69.80 84.200.70.40 9.9.9.9 --workers 5 --qps 500
 
 
 	python3 rdns.py run --cidr 128.2.0.0/20 --resolvers 1.0.0.1 1.1.1.1 8.8.4.4 8.8.8.8 208.67.220.220 208.67.222.222 216.146.35.35 --workers 5 --qps 500
@@ -136,3 +128,4 @@ python3 rdns.py run --cidr 128.8.0.0/24 128.8.0.0/24 --resolvers 8.8.4.4 159.89.
 128.8.127.4 from server 9.9.9.9 in 13 ms.
 
 - does not work: dig +time=2 +short +identify @159.89.120.99 cs.umd.edu 
+
