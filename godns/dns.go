@@ -64,7 +64,7 @@ func rdns(lookupIP string, dnsServer string) (string, error) {
     var port int
     for port == 0 {
         if ports.Empty() {
-            time.Sleep(1 * time.Second)
+            time.Sleep(50 * time.Millisecond)
             continue
         } else {
             val, err := ports.Get(1)
