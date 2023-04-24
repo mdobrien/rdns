@@ -1,20 +1,28 @@
 package main
 
 import (
-    "fmt"
-    "net"
-    "errors"
-    "os"
-    "log"
-    "strconv"
-    // "time"
-    "github.com/miekg/dns"
-    "sync"
-    // "json"
     "encoding/json"
+    "errors"
+    "fmt"
+    "log"
+    "net"
+    "os"
+    "strconv"
+    "sync"
     "time"
-    // "reflect"
+    
+    "github.com/miekg/dns"
+    "github.com/Workiva/go-datastructures/queue"
 )
+
+/*
+At startup, a pool of ports is initialized. Then a port is grabbed from the pool 
+to use for sending the dns request. If no ports are available, the dns request won't 
+be sent until one is available.
+*/
+
+var ports = queue.New(1)
+
 
 type Task struct {
     resolver string
@@ -48,17 +56,35 @@ func rdns(lookupIP string, dnsServer string) (string, error) {
     // fmt.Println(lookupIP, dnsServer)
 
     // create client
-    c := dns.Client{}
-    // c := new(dns.Client)
-    // laddr := net.UDPAddr{
-    //     IP: net.ParseIP("[::1]"),
-    //     Port: 12345,
-    //     Zone: "",
-    // }
-    // c.Dialer = &net.Dialer{
-    //     Timeout: 900 * time.Millisecond,
-    //     LocalAddr: &laddr,
-    // }
+    // c := dns.Client{}
+
+    // This block will grab an available por from ports queue
+    // Then bind to the port and send the dns request
+    // get available port
+    var port int
+    for port == 0 {
+        if ports.Empty() {
+            time.Sleep(1 * time.Second)
+            continue
+        } else {
+            val, err := ports.Get(1)
+            if err != nil {
+                fmt.Println()
+                return "ports", errors.New("failed to grab port number from the queue")
+            }
+            port = val[0].(int)
+        }
+    }
+    c := new(dns.Client)
+    laddr := net.UDPAddr{
+        IP: net.ParseIP("[::1]"),
+        Port: port,
+        Zone: "",
+    }
+    c.Dialer = &net.Dialer{
+        Timeout: 900 * time.Millisecond,
+        LocalAddr: &laddr,
+    }
 
 
     ip := net.ParseIP(lookupIP)  // Todo: check if this is redundent
@@ -74,7 +100,7 @@ func rdns(lookupIP string, dnsServer string) (string, error) {
     resp, _, err := c.Exchange(&msg, dnsServer+":53")
     if err != nil {
         // fmt.Println("ERROR", err, "ip: ",ip, "resolver: ", dnsServer)
-        return "timeout", errors.New("query timeout")
+        return "timeout", errors.New("query timeout: ")
     }
     if resp == nil {
         // fmt.Println(ip,"-", dnsServer,"failed PTR look up")
@@ -100,6 +126,8 @@ func rdns(lookupIP string, dnsServer string) (string, error) {
         return "noname", errors.New("query timeout")
     }
 
+    ports.Put(port)
+
     return "c", nil
 
 }
@@ -107,6 +135,7 @@ func rdns(lookupIP string, dnsServer string) (string, error) {
 func lookUpSlash24(prefix string, dnsServer string) (Slash24Result) {
     /*
     The function will query th entire /24 of the prefix privded
+    If a dns queries times out. There will be a 15s pause before sending the next one
     The entire lookup will take ~8s against 1.1.1.1 or 8.8.8.8
      Args:
         prefix (str): prefix of a /24 
@@ -129,6 +158,8 @@ func lookUpSlash24(prefix string, dnsServer string) (Slash24Result) {
             }
             if res == "timeout" {
                 timeout_ips = append(timeout_ips, ip)
+                // sleep for 10 seconds
+                time.Sleep(15 * time.Second)
                 // fmt.Println("timeout ", ip, dnsServer)
 
             }
@@ -236,8 +267,8 @@ func process_results(c chan Slash24Result) {
         }
         // fmt.Println("task result:", res.resolver, "queries:", len(res.ipToName)+len(res.timeout_ips)+len(res.noname_ips),"names", len(res.ipToName),"timeouts:", len(res.timeout_ips), "nonames:", len(res.noname_ips))
         // fmt.Println(res.ipToName)
-        json, _ := json.Marshal(res.ipToName)
-        fmt.Println("json", string(json))
+        // json, _ := json.Marshal(res.ipToName)
+        // fmt.Println("json", string(json))
         write_result(res)
 
         // jsonString := string(json)
@@ -283,6 +314,14 @@ func main() {
     /*
 
     */
+    
+    // init ports
+    count := 1001
+    for count < 65500 {
+        ports.Put(count)
+        count++
+    }
+
     tasking := recv_tasking("/root/tasking.json")
     fmt.Println("tasking", tasking)
     var wg sync.WaitGroup
