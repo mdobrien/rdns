@@ -27,7 +27,14 @@ type Slash24Result struct {
     timeout_ips []string
     noname_ips []string
     ipToName map[string]string
-} 
+    prefix string
+}
+
+type ResolverStats struct {
+    num_queries int
+    num_timeouts int
+    resolver string
+}  
 
 func rdns(lookupIP string, dnsServer string) (string, error) {
     /*
@@ -41,17 +48,17 @@ func rdns(lookupIP string, dnsServer string) (string, error) {
     // fmt.Println(lookupIP, dnsServer)
 
     // create client
-    // c := dns.Client{}
-    c := new(dns.Client)
-    laddr := net.UDPAddr{
-        IP: net.ParseIP("[::1]"),
-        Port: 12345,
-        Zone: "",
-    }
-    c.Dialer = &net.Dialer{
-        Timeout: 200 * time.Millisecond,
-        LocalAddr: &laddr,
-    }
+    c := dns.Client{}
+    // c := new(dns.Client)
+    // laddr := net.UDPAddr{
+    //     IP: net.ParseIP("[::1]"),
+    //     Port: 12345,
+    //     Zone: "",
+    // }
+    // c.Dialer = &net.Dialer{
+    //     Timeout: 900 * time.Millisecond,
+    //     LocalAddr: &laddr,
+    // }
 
 
     ip := net.ParseIP(lookupIP)  // Todo: check if this is redundent
@@ -136,21 +143,26 @@ func lookUpSlash24(prefix string, dnsServer string) (Slash24Result) {
     }
 
 
-    // ipToName["resolver"] = dnsServer
-    results := Slash24Result{dnsServer, timeout_ips, noname_ips, ipToName}
+    results := Slash24Result{dnsServer, timeout_ips, noname_ips, ipToName, prefix}
     // fmt.Println("results",results)
-    // fmt.Println("names", len(ipToName))
-    // fmt.Println("noname_ips", len(noname_ips))
-    // fmt.Println("timeout_ips", len(timeout_ips))
-    // ipToName["noname"] = noname_ips
-    // ipToName["timeout"] = timeout_ips
 
-
-
-    // fmt.Println(ipToName)
-    // fmt.Println(ipToName["128.8.0.1"])
     return results
 }
+
+func write_result(res Slash24Result) {
+    f, err := os.Create("/data/" + res.prefix)
+    if err != nil {
+        fmt.Println(err)
+    }
+    defer f.Close()
+
+    json, _ := json.Marshal(res.ipToName)
+
+    f.Write(json)
+
+
+}
+
 
 func recv_tasking(path string) []Task {
     // open file
@@ -192,25 +204,76 @@ func recv_tasking(path string) []Task {
 
     return tasks
 }
+
 func process_results(c chan Slash24Result) {
 // func process_results(c chan Slash24Result, wg sync.WaitGroup) {
     // defer wg.Done()
-    fmt.Println("start")
-    names := 0
-    nonames := 0
-    timeouts := 0
+    stats := make(map[string]ResolverStats)
+    total_names := 0
+    total_nonames := 0
+    total_timeouts := 0
     for res := range c {
-        timeouts += len(res.timeout_ips)
-        nonames += len(res.noname_ips)
-        names += len(res.ipToName)
+
+        timeouts := len(res.timeout_ips)
+        nonames := len(res.noname_ips)
+        names := len(res.ipToName)
+
+        total_names += names
+        total_timeouts += timeouts
+        total_nonames +=nonames
         // fmt.Println("task result:", res)
+        fmt.Println("timeouts=",timeouts, "nonames=",nonames, "names=",names)
+        val, ok := stats[res.resolver]
+        if ok {
+            // fmt.Println("cidr val:", val)
+            val.num_queries += names+nonames+timeouts
+            val.num_timeouts += timeouts
+            // fmt.Println("task result:", res.resolver, "queries:", len(res.ipToName)+len(res.timeout_ips)+len(res.noname_ips),"names", len(res.ipToName),"timeouts:", len(res.timeout_ips), "nonames:", len(res.noname_ips))
+
+        } else {
+            stats[res.resolver] = ResolverStats{names+nonames+timeouts, timeouts, res.resolver}
+            // fmt.Println("task result:", res.resolver, "queries:", len(res.ipToName)+len(res.timeout_ips)+len(res.noname_ips),"names", len(res.ipToName),"timeouts:", len(res.timeout_ips), "nonames:", len(res.noname_ips))
+        }
+        // fmt.Println("task result:", res.resolver, "queries:", len(res.ipToName)+len(res.timeout_ips)+len(res.noname_ips),"names", len(res.ipToName),"timeouts:", len(res.timeout_ips), "nonames:", len(res.noname_ips))
+        // fmt.Println(res.ipToName)
+        json, _ := json.Marshal(res.ipToName)
+        fmt.Println("json", string(json))
+        write_result(res)
+
+        // jsonString := string(json)
+        // fmt.Println(jsonString)
+
+        // 
+
+
+
     }
-    fmt.Println("names:", names)
-    fmt.Println("nonames:", nonames)
-    fmt.Println("timeouts:", timeouts)
-    fmt.Println("names/ip: ", names, "/", names+nonames+timeouts)
-    fmt.Println("end")
+    fmt.Println("stats:", stats)
+
+    // for rstats := range stats {
+    //     fmt.Println("resolver:", stats[rstats].resolver, "timeouts/queryies: ", stats[rstats].num_timeouts, "/", stats[rstats].num_queries)
+    //     // fmt.Println("rstats:", rstats)
+    // }
+
+
+    fmt.Println("names/ip: ", total_names, "/", total_names+total_nonames+total_timeouts)
+    fmt.Println("nonames/ip:", total_nonames, "/", total_names+total_nonames+total_timeouts)
+    fmt.Println("timeouts/ip:", total_timeouts, "/", total_names+total_nonames+total_timeouts)
 }
+// type ResolverStats struct {
+//     num_queries int
+//     num_timeouts int
+//     resolver string
+// }  
+
+// type Slash24Result struct {
+//     resolver string
+//     timeout_ips []string
+//     noname_ips []string
+//     ipToName map[string]string
+// }
+
+
 
 
 
