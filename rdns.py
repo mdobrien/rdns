@@ -378,6 +378,20 @@ def cli_rdns_go(args):
 
 # 	logging.debug (f'runtime: {time.time() - start:.2f}')
 
+def cli_benchmark(args):
+	filepath = args.file
+	# with open(filepath, "r") as f:
+	# ips = []
+	# domains = []
+	# resolvers = parse resolvers
+	# for resolver in resolvers
+		 # look up ips
+		 # look up domains
+		 # save latency for each query
+		 # calc number of correct answers
+	# print stats
+
+
 def cli_clean(args):
 	"""
 		This function will remove all directories in DATA_HOME
@@ -424,6 +438,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     subparser = parser.add_subparsers()
 
+    rdns_parser = subparser.add_parser('benchmark')
+    rdns_parser.add_argument('-f', '--file', type=str)
+    rdns_parser.set_defaults(func=cli_benchmark)
+
     rdns_parser = subparser.add_parser('clean')
     rdns_parser.add_argument('--keep', nargs='+', required=False)
     rdns_parser.set_defaults(func=cli_clean)
@@ -434,6 +452,7 @@ if __name__ == "__main__":
     rdns_parser.add_argument('-q','--qps', type=int)
     rdns_parser.add_argument('-w','--workers', type=int)
     rdns_parser.set_defaults(func=cli_rdns_go)
+
 
     rdns_parser = subparser.add_parser('test')
     rdns_parser.set_defaults(func=cli_test)
