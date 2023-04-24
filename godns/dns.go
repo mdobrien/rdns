@@ -158,6 +158,7 @@ func lookUpSlash24(prefix string, dnsServer string) (Slash24Result) {
             }
             if res == "timeout" {
                 timeout_ips = append(timeout_ips, ip)
+                fmt.Println('WARN timeoute: ip:', ip, ' resolver: 'dnsServer)
                 // sleep for 10 seconds
                 time.Sleep(15 * time.Second)
                 // fmt.Println("timeout ", ip, dnsServer)
