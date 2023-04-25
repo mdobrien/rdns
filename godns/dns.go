@@ -88,15 +88,12 @@ func rdns(lookupIP string, dnsServer string) (string, error) {
         Timeout: 900 * time.Millisecond,
         LocalAddr: &laddr,
     }
-
-
     ip := net.ParseIP(lookupIP)  // Todo: check if this is redundent
     rev, err := dns.ReverseAddr(ip.String())
     if err != nil {
         fmt.Println(err)
         return lookupIP, err
     }
-
     // TODO: add logic to store ips when the cnx times out
     msg := dns.Msg{}
     msg.SetQuestion(rev, dns.TypePTR)
@@ -109,7 +106,6 @@ func rdns(lookupIP string, dnsServer string) (string, error) {
         // fmt.Println(ip,"-", dnsServer,"failed PTR look up")
         return "a", nil
     }
-
     // TODO: condense code to single return statement
     // hostname := "None"
     ports.Put(port)
@@ -119,8 +115,6 @@ func rdns(lookupIP string, dnsServer string) (string, error) {
                 hostname := ptr.Ptr
                 // fmt.Println(dnsServer, ip, hostname)
                 return hostname, nil
-
-
             } else {
                 return "b", nil
             }
@@ -129,9 +123,6 @@ func rdns(lookupIP string, dnsServer string) (string, error) {
         // fmt.Println(lookupIP, "noname")
         return "noname", errors.New("query timeout")
     }
-
-    
-
     return "c", nil
 
 }
@@ -219,28 +210,17 @@ func recv_tasking(path string) []Task {
         log.Fatal(err)
     }
 
-
     // Print the decoded data
     for key, values := range data {
         for _,cidr := range values {
             task := Task{key, cidr, 500}
-            // fmt.Println(task)
             tasks = append(tasks, task)
-
         }
-        // fmt.Printf("%s: %v\n", key, values)
     }
-
-    // fmt.Println(tasks)
-    // fmt.Println(tasks[0][0],tasks[0][1])
-    // fmt.Println(reflect.TypeOf(tasks[0][1]))
-
     return tasks
 }
 
 func process_results(c chan Slash24Result) {
-// func process_results(c chan Slash24Result, wg sync.WaitGroup) {
-    // defer wg.Done()
     stats := make(map[string]ResolverStats)
     total_names := 0
     total_nonames := 0
@@ -250,19 +230,15 @@ func process_results(c chan Slash24Result) {
         timeouts := len(res.timeout_ips)
         nonames := len(res.noname_ips)
         names := len(res.ipToName)
-
         total_names += names
         total_timeouts += timeouts
         total_nonames +=nonames
-        // fmt.Println("task result:", res)
+
         fmt.Println("timeouts=",timeouts, "nonames=",nonames, "names=",names)
         val, ok := stats[res.resolver]
         if ok {
-            // fmt.Println("cidr val:", val)
             val.num_queries += names+nonames+timeouts
             val.num_timeouts += timeouts
-            // fmt.Println("task result:", res.resolver, "queries:", len(res.ipToName)+len(res.timeout_ips)+len(res.noname_ips),"names", len(res.ipToName),"timeouts:", len(res.timeout_ips), "nonames:", len(res.noname_ips))
-
         } else {
             stats[res.resolver] = ResolverStats{names+nonames+timeouts, timeouts, res.resolver}
             // fmt.Println("task result:", res.resolver, "queries:", len(res.ipToName)+len(res.timeout_ips)+len(res.noname_ips),"names", len(res.ipToName),"timeouts:", len(res.timeout_ips), "nonames:", len(res.noname_ips))
@@ -273,49 +249,15 @@ func process_results(c chan Slash24Result) {
         // fmt.Println("json", string(json))
         write_result(res)
 
-        // jsonString := string(json)
-        // fmt.Println(jsonString)
-
-        // 
-
-
-
     }
     fmt.Println("stats:", stats)
-
-    // for rstats := range stats {
-    //     fmt.Println("resolver:", stats[rstats].resolver, "timeouts/queryies: ", stats[rstats].num_timeouts, "/", stats[rstats].num_queries)
-    //     // fmt.Println("rstats:", rstats)
-    // }
-
-
     fmt.Println("names/ip: ", total_names, "/", total_names+total_nonames+total_timeouts)
     fmt.Println("nonames/ip:", total_nonames, "/", total_names+total_nonames+total_timeouts)
     fmt.Println("timeouts/ip:", total_timeouts, "/", total_names+total_nonames+total_timeouts)
 }
-// type ResolverStats struct {
-//     num_queries int
-//     num_timeouts int
-//     resolver string
-// }  
-
-// type Slash24Result struct {
-//     resolver string
-//     timeout_ips []string
-//     noname_ips []string
-//     ipToName map[string]string
-// }
-
-
-
-
-
-
 
 func main() {
-    /*
 
-    */
     // set desired QPS for resolvers
     // TODO: parse desired qps from tasking req
     qps := 50
@@ -356,18 +298,14 @@ func main() {
 
         go func(task Task, c chan Slash24Result) {
             defer wg.Done()
-            // fmt.Println(task)
             result := lookUpSlash24(task.cidr, task.resolver)
-            // go process_results(result)
             c <- result
-            // fmt.Println(result)
         }(task, c)
 
-        // fmt.Println(res)
-
-        // if i % 10 == 0 {
-        //     time.Sleep(5 * time.Second)
-        // }
+        // sleep during init to avoid timeouts
+        if i < 5 == 0 {
+            time.Sleep(1 * time.Second)
+        }
 
         i++
     }
