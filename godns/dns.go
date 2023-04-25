@@ -11,6 +11,7 @@ import (
     "sync"
     "time"
     
+    "github.com/cornelk/hashmap"
     "github.com/miekg/dns"
     "github.com/Workiva/go-datastructures/queue"
 )
@@ -22,7 +23,8 @@ be sent until one is available.
 */
 
 var ports = queue.New(1)
-
+var desiredQPS = hashmap.New[string, int]()
+var computedQPS = hashmap.New[string, int]()
 
 type Task struct {
     resolver string
@@ -65,6 +67,7 @@ func rdns(lookupIP string, dnsServer string) (string, error) {
     for port == 0 {
         if ports.Empty() {
             time.Sleep(50 * time.Millisecond)
+            fmt.Println("No ports")
             continue
         } else {
             val, err := ports.Get(1)
@@ -109,6 +112,7 @@ func rdns(lookupIP string, dnsServer string) (string, error) {
 
     // TODO: condense code to single return statement
     // hostname := "None"
+    ports.Put(port)
     if len(resp.Answer) > 0 {
         for _, ans := range resp.Answer {
             if ptr, ok := ans.(*dns.PTR); ok {
@@ -126,7 +130,7 @@ func rdns(lookupIP string, dnsServer string) (string, error) {
         return "noname", errors.New("query timeout")
     }
 
-    ports.Put(port)
+    
 
     return "c", nil
 
@@ -145,38 +149,38 @@ func lookUpSlash24(prefix string, dnsServer string) (Slash24Result) {
     */
     var noname_ips []string
     var timeout_ips []string
-
     var ipToName = make(map[string]string)
+
+    // qps, _ := desiredQPS.Get(dnsServer)
+    // wait := 
+
+    st := time.Now()
     for i := 0; i <= 255; i++ {
         ip := prefix + strconv.Itoa(i)
-        // fmt.Println(ip)
+        // st := time.Now()
+        // end := time.Now()
+        // elapsed := end.Sub(st)
+        // fmt.Println("resolver:", dnsServer, "ip:", ip, "time:", elapsed)
         res, err := rdns(ip,dnsServer)
         if err != nil {
             if res == "noname" {
                 noname_ips = append(noname_ips, ip)
-
             }
             if res == "timeout" {
                 timeout_ips = append(timeout_ips, ip)
-                fmt.Println('WARN timeoute: ip:', ip, ' resolver: 'dnsServer)
+                fmt.Println("WARN timeoute: ip:", ip, " resolver: ", dnsServer)
                 // sleep for 10 seconds
-                time.Sleep(15 * time.Second)
-                // fmt.Println("timeout ", ip, dnsServer)
-
+                time.Sleep(5 * time.Second)
             }
         } else {
             ipToName[ip] = res
         }
-        // fmt.Println(res)
-
-
-        // fmt.Println(ip,res,"res")
-
     }
 
-
     results := Slash24Result{dnsServer, timeout_ips, noname_ips, ipToName, prefix}
-    // fmt.Println("results",results)
+    end := time.Now()
+    elapsed := end.Sub(st)
+    fmt.Println("resolver:", dnsServer, "prefix:", prefix, "time:", elapsed)
 
     return results
 }
@@ -186,13 +190,10 @@ func write_result(res Slash24Result) {
     if err != nil {
         fmt.Println(err)
     }
+
     defer f.Close()
-
     json, _ := json.Marshal(res.ipToName)
-
     f.Write(json)
-
-
 }
 
 
@@ -315,6 +316,26 @@ func main() {
     /*
 
     */
+    // set desired QPS for resolvers
+    // TODO: parse desired qps from tasking req
+    qps := 50
+    desiredQPS.Set("1.1.1.1", qps)
+    desiredQPS.Set("1.0.0.1", qps)
+    desiredQPS.Set("8.8.4.4", qps)
+    desiredQPS.Set("8.8.8.8", qps)
+    desiredQPS.Set("208.67.220.220", qps)
+    desiredQPS.Set("208.67.222.222", qps)
+    desiredQPS.Set("216.146.35.35", qps)
+
+
+    computedQPS.Set("1.1.1.1", 0)
+    computedQPS.Set("1.0.0.1", 0)
+    computedQPS.Set("8.8.4.4", 0)
+    computedQPS.Set("8.8.8.8", 0)
+    computedQPS.Set("208.67.220.220", 0)
+    computedQPS.Set("208.67.222.222", 0)
+    computedQPS.Set("216.146.35.35", 0)
+
     
     // init ports
     count := 1001
@@ -344,9 +365,9 @@ func main() {
 
         // fmt.Println(res)
 
-        if i % 10 == 0 {
-            time.Sleep(5 * time.Second)
-        }
+        // if i % 10 == 0 {
+        //     time.Sleep(5 * time.Second)
+        // }
 
         i++
     }
