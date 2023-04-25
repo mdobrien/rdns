@@ -13,6 +13,7 @@ import (
     
     "github.com/cornelk/hashmap"
     "github.com/miekg/dns"
+    "github.com/shogo82148/go-shuffle"
     "github.com/Workiva/go-datastructures/queue"
 )
 
@@ -25,6 +26,18 @@ be sent until one is available.
 var ports = queue.New(1)
 var desiredQPS = hashmap.New[string, int]()
 var computedQPS = hashmap.New[string, int]()
+// var resolverToLatency = hashmap.New[string, int]()
+
+// var ipTocount = hashmap.New[string, int]()
+// var start = time.Now()
+// qps = desiredQPS[resolver]
+// numQueries = ipTocount[resolver]
+// now = time.Now()
+// delta = now.Sub(start)
+// computedQPS = numQueries / sec(delta)
+
+
+
 
 type Task struct {
     resolver string
@@ -38,6 +51,7 @@ type Slash24Result struct {
     noname_ips []string
     ipToName map[string]string
     prefix string
+    latency float64
 }
 
 type ResolverStats struct {
@@ -161,17 +175,18 @@ func lookUpSlash24(prefix string, dnsServer string) (Slash24Result) {
                 timeout_ips = append(timeout_ips, ip)
                 fmt.Println("WARN timeoute: ip:", ip, " resolver: ", dnsServer)
                 // sleep for 10 seconds
-                time.Sleep(5 * time.Second)
+                time.Sleep(1 * time.Second)
             }
         } else {
             ipToName[ip] = res
         }
     }
 
-    results := Slash24Result{dnsServer, timeout_ips, noname_ips, ipToName, prefix}
     end := time.Now()
-    elapsed := end.Sub(st)
-    fmt.Println("resolver:", dnsServer, "prefix:", prefix, "time:", elapsed)
+    elapsed := end.Sub(st).Seconds()
+    // fmt.Printf("%T %v\n", elapsed, elapsed)
+    results := Slash24Result{dnsServer, timeout_ips, noname_ips, ipToName, prefix, elapsed}
+    // fmt.Println("resolver:", dnsServer, "prefix:", prefix, "time:", elapsed )
 
     return results
 }
@@ -217,6 +232,8 @@ func recv_tasking(path string) []Task {
             tasks = append(tasks, task)
         }
     }
+
+    shuffle.Slice(tasks)
     return tasks
 }
 
@@ -234,7 +251,7 @@ func process_results(c chan Slash24Result) {
         total_timeouts += timeouts
         total_nonames +=nonames
 
-        fmt.Println("timeouts=",timeouts, "nonames=",nonames, "names=",names)
+        fmt.Println("resolver=", res.resolver, "prefix=", res.prefix, "latency=", res.latency,  "timeouts=",timeouts, "nonames=",nonames, "names=",names)
         val, ok := stats[res.resolver]
         if ok {
             val.num_queries += names+nonames+timeouts
@@ -260,7 +277,7 @@ func main() {
 
     // set desired QPS for resolvers
     // TODO: parse desired qps from tasking req
-    qps := 50
+    qps := 50 * 1000
     desiredQPS.Set("1.1.1.1", qps)
     desiredQPS.Set("1.0.0.1", qps)
     desiredQPS.Set("8.8.4.4", qps)
@@ -303,11 +320,14 @@ func main() {
         }(task, c)
 
         // sleep during init to avoid timeouts
-        if i < 5 == 0 {
-            time.Sleep(1 * time.Second)
-        }
-
         i++
+        // if i < 5  {
+        //     time.Sleep(1 * time.Second)
+        // }
+
+        if i % 50 == 0  {
+            time.Sleep( 10 * time.Second)
+        }
     }
     go func(c chan Slash24Result) {
         defer close(c)
