@@ -1,11 +1,12 @@
-import ipaddress
-import time
 import argparse
+import ipaddress
 import json
-import sys
 import logging
-from scapy.all import *
-
+import math
+import os
+import sys
+import time
+# from scapy.all import *
 
 # ----------------------------------------
 import logging
@@ -25,7 +26,7 @@ DATA_DIR = '/data/'
 
 # Sucess 1
 # pre dynamicly adjust wait based on interval time
-python3 rdns.py run --cidr 128.8.0.0/16 --destination 8.8.8.8 --qps 500
+python3 rdns.py run --cidr 128.8.0.0/16 --resolvers 8.8.8.8 --qps 500
 executed 65500, last ip: 128.8.255.219, results size: 0.58992mb, interval: 48.662986278533936s
 avg name length: 21.842153441272384
 #names/#queries: 17479 / 65536
@@ -34,7 +35,7 @@ avg name length: 21.842153441272384
 Elapse time sending DNS queries: 12325.574210643768s
 
 # Success 2
-python3 rdns.py run --cidr 128.8.0.0/16 --destination 8.8.8.8
+python3 rdns.py run --cidr 128.8.0.0/16 --resolvers 8.8.8.8
 avg name length: 21.846541745458712
 #names/#queries: 17451 / 65536
 #timeouts: 100
@@ -113,10 +114,10 @@ def cidr_to_24(cidr):
     # Create a list of /24 CIDRs contained within the input CIDR
     cidr_list = []
     for subnet in network.subnets(new_prefix=24):
-        cidr_list.append(str(subnet))
+        cidr_list.append(str(subnet)[:-4])
     
     return cidr_list
-    
+
 def expand_cidr(cidr):
     """
     Expands a CIDR notation for an IPv4 network to a list of IP addresses
@@ -292,17 +293,104 @@ def store_dns(failed_rdns_ips=None, noname_rdsn_ips=None, results=None, run_id=N
 
 	return True
 
-# ------------------------------------------------------------------------
-def cli_rdns(args):
-	"""
-	Invoed by running rdns from the commandline
-	"""
-	start = time.time()
-	conf.verb = 0 # disable scapy debug statements
-	logging.debug(f'cidr={args.cidr}, dns_server_ip={args.destination}, qps={args.qps}')
-	rdns(cidr=args.cidr, dns_server_ip=args.destination, qps=args.qps)
+def generate_tasking(cidrs, resolvers):
+	# split cidrs to /24s
+	# split nets equally among resolvers
+	nets = []
+	for cidr in cidrs:
+		nets += cidr_to_24(cidr)
+	# logging.debug(f'size={len(nets)} nets={nets}')
 
+	pivot = math.ceil(len(nets) / len(resolvers))
+
+	tasking = dict()
+	start = 0
+	end = pivot
+	for resolver in resolvers:
+		partition = nets[start:end]
+		# logging.debug(f'start={start}, end={end} size={len(partition)} partition={partition}')
+
+		start += pivot
+		end += pivot
+		if partition:
+			tasking[resolver] = partition
+		else:
+			logging.info(f'No tasking sent to {resolver}')
+
+		# logging.debug(f'{tasking!r}')
+	tasking = json.dumps(tasking)
+
+	return tasking
+
+
+def godns(cidrs, resolvers, workers, qps):
+
+	# TODO: handle more than one CIDR
+	# TODO: create work message
+	# TODO: sent tasking message to worker from master
+	# Todo: recv tasking msg and parse it
+	# Todo: dispacht tasking to multhreading asynchronous rdns lookup
+	if len(cidrs) > 0 and len(resolvers):
+
+		tasking = generate_tasking(cidrs, resolvers)
+
+		with open('/root/tasking.json', 'w') as f:
+			f.write(tasking)
+
+		# logging.info(f'{tasking!r}')
+		# cidr = cidrs[0]
+		cmd = f'go run /root/godns/dns.go'
+		os.system(cmd)
+		logging.info(f'Execute: {cmd}')
+
+
+# ------------------------------------------------------------------------
+def cli_rdns_go(args):
+	cidrs = args.cidrs
+	resolvers = args.resolvers
+	qps = args.qps
+	workers = args.workers
+
+	start = time.time()
+	godns(cidrs, resolvers, workers, qps)
 	logging.debug (f'runtime: {time.time() - start:.2f}')
+# ------------------------------------------------------------------------
+# def cli_rdns(args):
+# 	"""
+# 	Invoed by running rdns from the commandline
+# 	"""
+# 	cidrs = args.cidrs
+# 	resolvers = args.resolvers
+# 	qps = args.qps
+# 	workers = args.workers
+
+# 	start = time.time()
+# 	# conf.verb = 0 # disable scapy debug statements
+# 	logging.debug(f'cidr={args.cidrs}, dns_server_ip={args.resolvers}, qps={args.qps}, workers={args.workers}')
+# 	# Todo  master - add num clients as param that gets parsed
+# 	# TODO: master - generate tasking messages
+# 	# TODO: master - init worker nodes
+# 	# TODO: master - send tasking msg to worker nodes
+# 	# TODO: master - establisg cnx to worker nodes
+# 	# TODO: master - send tasking to worker nodes
+# 	# rdns(cidr=args.cidr, dns_server_ip=args.resolvers, qps=args.qps)
+# 	generate_tasking(cidrs, resolvers, workers, qps)
+
+# 	logging.debug (f'runtime: {time.time() - start:.2f}')
+
+def cli_benchmark(args):
+	filepath = args.file
+	# with open(filepath, "r") as f:
+	# ips = []
+	# domains = []
+	# resolvers = parse resolvers
+	# for resolver in resolvers
+		 # look up ips
+		 # look up domains
+		 # save latency for each query
+		 # calc number of correct answers
+	# print stats
+
 
 def cli_clean(args):
 	"""
@@ -337,8 +425,8 @@ def cli_test(args):
 				for file in os.listdir(path):
 					logging.debug(f'{path + file}')
 					os.remove(path + file)
-				os.rmdir(path)
-				# breakpoint()
+				# os.rmdir(path)
+				breakpoint()
 	
 	pass
 
@@ -350,15 +438,21 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     subparser = parser.add_subparsers()
 
+    rdns_parser = subparser.add_parser('benchmark')
+    rdns_parser.add_argument('-f', '--file', type=str)
+    rdns_parser.set_defaults(func=cli_benchmark)
+
     rdns_parser = subparser.add_parser('clean')
     rdns_parser.add_argument('--keep', nargs='+', required=False)
     rdns_parser.set_defaults(func=cli_clean)
 
     rdns_parser = subparser.add_parser('run')
-    rdns_parser.add_argument('-d','--destination')
-    rdns_parser.add_argument('-c','--cidr', type=str)
+    rdns_parser.add_argument('-d','--resolvers', nargs='+', required=False)
+    rdns_parser.add_argument('-c','--cidrs', nargs='+', required=False)
     rdns_parser.add_argument('-q','--qps', type=int)
-    rdns_parser.set_defaults(func=cli_rdns)
+    rdns_parser.add_argument('-w','--workers', type=int)
+    rdns_parser.set_defaults(func=cli_rdns_go)
+
 
     rdns_parser = subparser.add_parser('test')
     rdns_parser.set_defaults(func=cli_test)

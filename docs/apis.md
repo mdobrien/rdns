@@ -28,7 +28,7 @@ Requirements
   - show qpm,qps, aggegrate qpm, num workers, # dns servers, and runtime (hours/mins) before starting
 
 
-python3 rdns.py run --cidr 128.0.0.0/8,129.0.0.0/8,etc...  --destinations 1.1.1.1,8.8.8.8,8.8.4.4,etc... --qps 500 --workers
+python3 rdns.py run --cidr 128.8.0.0/16 129.2.0.0/16  --resolvers 1.1.1.1 8.8.8.8 8.8.4.4 --qps 500 --workers 2
 
 # Work breakdown
   - convert list of CIDRS into a list of /24s to be lookuped
