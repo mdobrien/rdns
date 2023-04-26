@@ -6,7 +6,25 @@
  - Create service to discover public resolvers executed recursive queries. This ips of ther resolves will then be used by the workers for executing DNS queries 
  - 
 
-# Running
+# Quick start
+```bash
+docker run -ti --volume $RDNS_HOME/rdns.py:/root/rdns.py --volume $RDNS_HOME/godns:/root/godns rdns bash
+
+# in the docker container 
+# step 1
+cd /root/godns
+# step 2
+go get github.com/Workiva/go-datastructures && \
+go get github.com/miekg/dns && \
+go get github.com/cornelk/hashmap && \
+go get github.com/shogo82148/go-shuffle && \
+go get golang.org/x/net && \
+go get golang.org/x/sys
+# step 3
+python3 ../rdns.py run --cidr 128.8.0.0/24 --resolvers 1.1.1.1 --qps 500
+```
+
+# Setup
 ```bash
 # Set project env vars and aliases
 export RDNS_HOME='/path/to/rdns'
