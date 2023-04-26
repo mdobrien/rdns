@@ -1,12 +1,12 @@
-import ipaddress
-import time
 import argparse
+import ipaddress
 import json
-import sys
 import logging
-import os
-# from scapy.all import *
 import math
+import os
+import sys
+import time
+# from scapy.all import *
 
 # ----------------------------------------
 import logging
