@@ -399,19 +399,21 @@ func main() {
         go rdns_worker(resultCH, taskCH , signalCH, resolver , wg)
     }
 
+    // dispatch tasks for specified resolver to correspodning gor
     for _, task := range tasking {
-        fmt.Println("dispatched:", task, time.Now())
-        
+        fmt.Println("dispatched:", task, time.Now())        
         taskCH := resolverToCH[task.resolver]
         taskCH <- task
     }
 
+    // send empty to signal all tasking has been sent
     for _,resolver := range resolvers {
         resolverToCH[resolver] <- Task{}
     }
 
 
-    // close tashCH for all goroutines
+    // listen for each gor to signal it finished processing tasks
+    // then close close tasking buffered channel for all goroutines
     signals := 0
     for v := range signalCH {
         signals += v
