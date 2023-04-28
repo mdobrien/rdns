@@ -27,7 +27,7 @@ python3 ../rdns.py run --cidr 128.8.0.0/24 --resolvers 1.1.1.1 --qps 500
 # Setup
 ```bash
 # Set project env vars and aliases
-export RDNS_HOME='/path/to/rdns'
+export RDNS_HOME='/path/to/<rdns>'
 alias db='cd $RDNS_HOME'
 alias biz='docker run -ti --volume $RDNS_HOME/rdns.py:/root/rdns.py --volume $RDNS_HOME/godns:/root/godns rdns bash'
 
