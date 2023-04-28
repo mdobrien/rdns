@@ -28,6 +28,7 @@ var desiredQPS = hashmap.New[string, int]()
 var computedQPS = hashmap.New[string, int]()
 var TASKING_PATH = "/tmp/tasking.json"
 var RESOLVERS_PATH = "/tmp/resolvers.json"
+var DATA_DIR = "/data/"
 // var resolverToLatency = hashmap.New[string, int]()
 
 // var ipTocount = hashmap.New[string, int]()
@@ -37,9 +38,6 @@ var RESOLVERS_PATH = "/tmp/resolvers.json"
 // now = time.Now()
 // delta = now.Sub(start)
 // computedQPS = numQueries / sec(delta)
-
-
-
 
 type Task struct {
     resolver string
@@ -194,6 +192,13 @@ func lookUpSlash24(prefix string, dnsServer string) (Slash24Result) {
 }
 
 func write_result(res Slash24Result) {
+    _, err := os.Stat(DATA_DIR)
+    if os.IsNotExist(err) {
+        err := os.MkdirAll(DATA_DIR, 0750)
+        if err != nil {
+            log.Fatal(err)
+        }
+    }
     f, err := os.Create("/data/" + res.prefix)
     if err != nil {
         fmt.Println(err)
@@ -273,6 +278,10 @@ func process_results(c chan Slash24Result) {
     total_timeouts := 0
     for res := range c {
 
+        if res.resolver == "" {
+            break
+        }
+
         timeouts := len(res.timeout_ips)
         nonames := len(res.noname_ips)
         names := len(res.ipToName)
@@ -308,26 +317,40 @@ func rdns_worker(sendCH chan Slash24Result, recvCH chan Task, signalCH chan int,
 
 
 
+    var lookup_wg sync.WaitGroup
 
+    i := 0
     for task := range recvCH {
         if task.resolver == "" {
+            // received terminate signal
+            // break from recv on recvCH
             break
         }
+            lookup_wg.Add(1)
+
+            go func(task Task, c chan Slash24Result) {
+                defer lookup_wg.Done()
+                fmt.Println("processing: ", task)
+                result := lookUpSlash24(task.cidr, task.resolver)
+                fmt.Println("result:", result)
+                sendCH <- result
+            }(task, sendCH)
+
+            i++
+            if i % 50 == 0  {
+                time.Sleep( 10 * time.Second)
+            }
+        }
+    
+    // time.Sleep(10 * time.Second)
 
 
-        if resolver == "1.1.1.1" {
-            time.Sleep(10 * time.Second)
-        } 
-        // else {
-        //     time.Sleep(1 * time.Second)
 
-        // }
-        // fmt.Println(task.resolver, "recv task:", task, time.Now())
-    }
-
-    fmt.Println("Finished", resolver, time.Now())
+    // signal this worker finished processing tasking 
+    lookup_wg.Wait()
     signalCH <- 1
-    // for
+    fmt.Println("Finished", resolver, time.Now())
+
 }
 
 func main() {
@@ -342,7 +365,6 @@ func main() {
     desiredQPS.Set("208.67.220.220", qps)
     desiredQPS.Set("208.67.222.222", qps)
     desiredQPS.Set("216.146.35.35", qps)
-
 
     computedQPS.Set("1.1.1.1", 0)
     computedQPS.Set("1.0.0.1", 0)
@@ -360,8 +382,6 @@ func main() {
         count++
     }
 
-
-
     // get list of resolvers
     resolvers := recv_resolvers(RESOLVERS_PATH)
     // fmt.Println("resolvers:",resolvers)
@@ -375,9 +395,8 @@ func main() {
 
     // create channel that will be used to pass results from
      // from workers to processing func
-    resultCH := make(chan Slash24Result)
+    resultCH := make(chan Slash24Result, 16777216)
     signalCH := make(chan int)
-
     
     // map that stores task channel for each resolver
     resolverToCH := make(map[string]chan Task)
@@ -411,7 +430,6 @@ func main() {
         resolverToCH[resolver] <- Task{}
     }
 
-
     // listen for each gor to signal it finished processing tasks
     // then close close tasking buffered channel for all goroutines
     signals := 0
@@ -422,10 +440,15 @@ func main() {
             for _, taskCH := range resolverToCH {
                 defer close(taskCH)
             }
+            // close(resultCH)
             break
         }
 
     }
+
+    resultCH <- Slash24Result{}
+    // Write dns request results to disk
+    process_results(resultCH)
 
     // time.Sleep(5 * time.Second)
     // go func(rtCH map[string]chan Task, wg sync.WaitGroup) {
