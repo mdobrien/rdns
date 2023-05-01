@@ -345,7 +345,11 @@ def godns(cidrs, resolvers, workers, qps):
 
 		# logging.info(f'{tasking!r}')
 		# cidr = cidrs[0]
-		cmd = f'go run /root/godns/dns.go'
+		# dns_env = os.getenv('DNS_ENV')
+		# if dns_env == "DEV":
+		# 	cmd = f'go run /root/godns/dns.go'
+		# if dns_env == "PROD":
+		cmd = '/rdns/bin/dns'
 		os.system(cmd)
 		logging.info(f'Execute: {cmd}')
 
