@@ -289,7 +289,7 @@ func process_results(c chan Slash24Result) {
         total_timeouts += timeouts
         total_nonames +=nonames
 
-        fmt.Println("resolver=", res.resolver, "prefix=", res.prefix, "latency=", res.latency,  "timeouts=",timeouts, "nonames=",nonames, "names=",names)
+        fmt.Println("resolver=", res.resolver, "prefix=", res.prefix, "latency=", res.latency,  "timeouts=",timeouts, "nonames=",nonames, "names=",names, "time=", time.Now())
         val, ok := stats[res.resolver]
         if ok {
             val.num_queries += names+nonames+timeouts
@@ -332,13 +332,13 @@ func rdns_worker(sendCH chan Slash24Result, recvCH chan Task, signalCH chan int,
                 defer lookup_wg.Done()
                 fmt.Println("processing: ", task)
                 result := lookUpSlash24(task.cidr, task.resolver)
-                fmt.Println("result:", result)
+                // fmt.Println("result:", result)
                 sendCH <- result
             }(task, sendCH)
 
             i++
             if i % 50 == 0  {
-                time.Sleep( 10 * time.Second)
+                time.Sleep( 2 * time.Second)
             }
         }
     

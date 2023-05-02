@@ -39,7 +39,8 @@ docker run -ti --volume $RDNS_HOME/rdns.py:/root/rdns.py --volume $RDNS_HOME/god
 cd godns
 
 # example run
-python3 ../rdns.py run --cidr 128.8.0.0/23 --resolvers 1.1.1.1 --qps 500
+python3 /rdns.py run --cidr 128.8.0.0/23 --resolvers 1.1.1.1 8.8.8.8 --qps 500
+python3 /rdns.py run --cidr 128.8.0.0/24 --resolvers 1.1.1.1 --qps 500
 
 ```
 
