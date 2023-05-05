@@ -21,6 +21,8 @@ logging.basicConfig(
 # ----------------------------------------
 # GLOBALS
 DATA_DIR = '/data/'
+TASKING_PATH = "/tmp/tasking.json"
+RESOLVERS_PATH = "/tmp/resolvers.json"
 """
 
 
@@ -332,14 +334,22 @@ def godns(cidrs, resolvers, workers, qps):
 	# Todo: dispacht tasking to multhreading asynchronous rdns lookup
 	if len(cidrs) > 0 and len(resolvers):
 
-		tasking = generate_tasking(cidrs, resolvers)
+		res = dict(resolvers=resolvers)
+		with open(RESOLVERS_PATH, 'w') as f:
+			resolvers_json = json.dumps(res)
+			f.write(resolvers_json)
 
-		with open('/root/tasking.json', 'w') as f:
+		tasking = generate_tasking(cidrs, resolvers)
+		with open(TASKING_PATH, 'w') as f:
 			f.write(tasking)
 
 		# logging.info(f'{tasking!r}')
 		# cidr = cidrs[0]
-		cmd = f'go run /root/godns/dns.go'
+		# dns_env = os.getenv('DNS_ENV')
+		# if dns_env == "DEV":
+		# 	cmd = f'go run /root/godns/dns.go'
+		# if dns_env == "PROD":
+		cmd = '/rdns/bin/dns'
 		os.system(cmd)
 		logging.info(f'Execute: {cmd}')
 
