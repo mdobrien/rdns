@@ -29,6 +29,8 @@ var computedQPS = hashmap.New[string, int]()
 var TASKING_PATH = "/tmp/tasking.json"
 var RESOLVERS_PATH = "/tmp/resolvers.json"
 var DATA_DIR = "/data/"
+var QPS = 200
+
 // var resolverToLatency = hashmap.New[string, int]()
 
 // var ipTocount = hashmap.New[string, int]()
@@ -86,7 +88,7 @@ func rdns(lookupIP string, dnsServer string) (string, error) {
         } else {
             val, err := ports.Get(1)
             if err != nil {
-                fmt.Println()
+                // fmt.Println()
                 return "ports", errors.New("failed to grab port number from the queue")
             }
             port = val[0].(int)
@@ -155,6 +157,8 @@ func lookUpSlash24(prefix string, dnsServer string) (Slash24Result) {
     var noname_ips []string
     var timeout_ips []string
     var ipToName = make(map[string]string)
+    // wait := (1000 * 60) / QPS
+    // fmt.Printf("%T %v", wait, wait)
 
     // qps, _ := desiredQPS.Get(dnsServer)
     // wait := 
@@ -289,7 +293,7 @@ func process_results(c chan Slash24Result) {
         total_timeouts += timeouts
         total_nonames +=nonames
 
-        fmt.Println("resolver=", res.resolver, "prefix=", res.prefix, "latency=", res.latency,  "timeouts=",timeouts, "nonames=",nonames, "names=",names, "time=", time.Now())
+        log.Println("resolver=", res.resolver, "prefix=", res.prefix, "latency=", res.latency,  "timeouts=",timeouts, "nonames=",nonames, "names=",names, "time=", time.Now())
         val, ok := stats[res.resolver]
         if ok {
             val.num_queries += names+nonames+timeouts
@@ -305,10 +309,10 @@ func process_results(c chan Slash24Result) {
         write_result(res)
 
     }
-    fmt.Println("stats:", stats)
-    fmt.Println("names/ip: ", total_names, "/", total_names+total_nonames+total_timeouts)
-    fmt.Println("nonames/ip:", total_nonames, "/", total_names+total_nonames+total_timeouts)
-    fmt.Println("timeouts/ip:", total_timeouts, "/", total_names+total_nonames+total_timeouts)
+    log.Println("stats:", stats)
+    log.Println("names/ip: ", total_names, "/", total_names+total_nonames+total_timeouts)
+    log.Println("nonames/ip:", total_nonames, "/", total_names+total_nonames+total_timeouts)
+    log.Println("timeouts/ip:", total_timeouts, "/", total_names+total_nonames+total_timeouts)
 }
 
 func rdns_worker(sendCH chan Slash24Result, recvCH chan Task, signalCH chan int, resolver string, wg sync.WaitGroup) {
@@ -330,7 +334,7 @@ func rdns_worker(sendCH chan Slash24Result, recvCH chan Task, signalCH chan int,
 
             go func(task Task, c chan Slash24Result) {
                 defer lookup_wg.Done()
-                fmt.Println("processing: ", task)
+                log.Println("processing: ", task)
                 result := lookUpSlash24(task.cidr, task.resolver)
                 // fmt.Println("result:", result)
                 sendCH <- result
@@ -349,7 +353,7 @@ func rdns_worker(sendCH chan Slash24Result, recvCH chan Task, signalCH chan int,
     // signal this worker finished processing tasking 
     lookup_wg.Wait()
     signalCH <- 1
-    fmt.Println("Finished", resolver, time.Now())
+    log.Println("Finished", resolver, time.Now())
 
 }
 
@@ -357,6 +361,7 @@ func main() {
 
     // set desired QPS for resolvers
     // TODO: parse desired qps from tasking req
+    log.Println("test")
     qps := 50 * 1000
     desiredQPS.Set("1.1.1.1", qps)
     desiredQPS.Set("1.0.0.1", qps)
@@ -388,7 +393,8 @@ func main() {
 
     // get tasking 
     tasking := recv_tasking(TASKING_PATH)
-    fmt.Println("tasking:", tasking)
+    log.Println("tasking:", tasking)
+    // fmt.Println()
 
     // create wait group
     var wg sync.WaitGroup
@@ -420,7 +426,8 @@ func main() {
 
     // dispatch tasks for specified resolver to correspodning gor
     for _, task := range tasking {
-        fmt.Println("dispatched:", task, time.Now())        
+        
+        log.Println("dispatched:", task, time.Now())        
         taskCH := resolverToCH[task.resolver]
         taskCH <- task
     }
