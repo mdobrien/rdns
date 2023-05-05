@@ -15,10 +15,10 @@ RUN mkdir /data
 # Install golang
 RUN curl -L https://golang.org/dl/go$GOVERSION.linux-amd64.tar.gz -o /tmp/go$GOVERSION.linux-amd64.tar.gz \
  && mkdir /go \
- && tar -C /go -xvf /tmp/go$GOVERSION.linux-amd64.tar.gz \
+ && tar -C / -xvf /tmp/go$GOVERSION.linux-amd64.tar.gz \
  && rm /tmp/*
 
-ENV PATH="$PATH:/go/go/bin"
+ENV PATH="$PATH:/go/bin"
 
 
 RUN mkdir -p /rdns/src/
