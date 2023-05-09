@@ -36,8 +36,8 @@ RUN go get github.com/Workiva/go-datastructures && \
 
 
 RUN echo "alias rdns.py='python3 /rdns/src/rdns.py'" >> /root/.bashrc
-RUN echo "alias ww='rdns.py run --cidr 128.8.0.0/24 --resolvers 1.1.1.1 --qps 500'"  >> /root/.bashrc
-RUN echo "alias ee='rdns.py run --cidr 128.8.0.0/24 --resolvers 8.8.8.8 --qps 500'" >> /root/.bashrc
+RUN echo "alias ec='rdns.py run --cidr 128.8.0.0/24 --resolvers 1.1.1.1 --qps 500'"  >> /root/.bashrc
+RUN echo "alias eg='rdns.py run --cidr 128.8.0.0/24 --resolvers 8.8.8.8 --qps 500'" >> /root/.bashrc
 RUN echo "alias rb='cd /rdns/src/ && go get && (rm /rdns/bin/dns || /bin/true) && go build -o /rdns/bin/dns /rdns/src/dns.go'" >> /root/.bashrc
 
 RUN go build -o /rdns/bin/dns /rdns/src/dns.go

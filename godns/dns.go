@@ -29,7 +29,7 @@ var computedQPS = hashmap.New[string, int]()
 var TASKING_PATH = "/tmp/tasking.json"
 var RESOLVERS_PATH = "/tmp/resolvers.json"
 var DATA_DIR = "/data/"
-var QPS = 200
+var QPS = 300
 
 // var resolverToLatency = hashmap.New[string, int]()
 
@@ -62,6 +62,11 @@ type ResolverStats struct {
     resolver string
 }  
 
+
+func init_logger() {
+    // config logger
+    log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+}
 func rdns(lookupIP string, dnsServer string) (string, error) {
     /*
 
@@ -157,14 +162,17 @@ func lookUpSlash24(prefix string, dnsServer string) (Slash24Result) {
     var noname_ips []string
     var timeout_ips []string
     var ipToName = make(map[string]string)
-    // wait := (1000 * 60) / QPS
-    // fmt.Printf("%T %v", wait, wait)
 
+    // TODO: get qps from desiredQPS
     // qps, _ := desiredQPS.Get(dnsServer)
-    // wait := 
+    qps := 300
+    wait := 1000 / qps
+    waitTime := time.Duration(wait) * time.Millisecond
 
     st := time.Now()
     for i := 0; i <= 255; i++ {
+        time.Sleep(waitTime)
+
         ip := prefix + strconv.Itoa(i)
         // st := time.Now()
         // end := time.Now()
@@ -177,7 +185,7 @@ func lookUpSlash24(prefix string, dnsServer string) (Slash24Result) {
             }
             if res == "timeout" {
                 timeout_ips = append(timeout_ips, ip)
-                fmt.Println("WARN timeoute: ip:", ip, " resolver: ", dnsServer)
+                log.Println("WARN timeoute: ip:", ip, " resolver: ", dnsServer)
                 // sleep for 10 seconds
                 time.Sleep(1 * time.Second)
             }
@@ -188,6 +196,8 @@ func lookUpSlash24(prefix string, dnsServer string) (Slash24Result) {
 
     end := time.Now()
     elapsed := end.Sub(st).Seconds()
+    log.Println("sec/query=", elapsed / 256, ", actual_qps= ", 256 / elapsed, ", desired_qps = ", qps  )
+
     // fmt.Printf("%T %v\n", elapsed, elapsed)
     results := Slash24Result{dnsServer, timeout_ips, noname_ips, ipToName, prefix, elapsed}
     // fmt.Println("resolver:", dnsServer, "prefix:", prefix, "time:", elapsed )
@@ -293,7 +303,7 @@ func process_results(c chan Slash24Result) {
         total_timeouts += timeouts
         total_nonames +=nonames
 
-        log.Println("resolver=", res.resolver, "prefix=", res.prefix, "latency=", res.latency,  "timeouts=",timeouts, "nonames=",nonames, "names=",names, "time=", time.Now())
+        log.Println("resolver=", res.resolver, "prefix=", res.prefix + "0/24", "latency=", res.latency,  "timeouts=",timeouts, "nonames=",nonames, "names=",names)
         val, ok := stats[res.resolver]
         if ok {
             val.num_queries += names+nonames+timeouts
@@ -309,7 +319,7 @@ func process_results(c chan Slash24Result) {
         write_result(res)
 
     }
-    log.Println("stats:", stats)
+    // log.Println("stats:", stats)
     log.Println("names/ip: ", total_names, "/", total_names+total_nonames+total_timeouts)
     log.Println("nonames/ip:", total_nonames, "/", total_names+total_nonames+total_timeouts)
     log.Println("timeouts/ip:", total_timeouts, "/", total_names+total_nonames+total_timeouts)
@@ -345,31 +355,28 @@ func rdns_worker(sendCH chan Slash24Result, recvCH chan Task, signalCH chan int,
                 time.Sleep( 2 * time.Second)
             }
         }
-    
-    // time.Sleep(10 * time.Second)
-
-
-
+  
     // signal this worker finished processing tasking 
     lookup_wg.Wait()
     signalCH <- 1
-    log.Println("Finished", resolver, time.Now())
+    log.Println("Finished tasking for:", resolver)
 
 }
 
 func main() {
 
+    init_logger()
+
     // set desired QPS for resolvers
     // TODO: parse desired qps from tasking req
-    log.Println("test")
-    qps := 50 * 1000
-    desiredQPS.Set("1.1.1.1", qps)
-    desiredQPS.Set("1.0.0.1", qps)
-    desiredQPS.Set("8.8.4.4", qps)
-    desiredQPS.Set("8.8.8.8", qps)
-    desiredQPS.Set("208.67.220.220", qps)
-    desiredQPS.Set("208.67.222.222", qps)
-    desiredQPS.Set("216.146.35.35", qps)
+
+    desiredQPS.Set("1.1.1.1", QPS)
+    desiredQPS.Set("1.0.0.1", QPS)
+    desiredQPS.Set("8.8.4.4", QPS)
+    desiredQPS.Set("8.8.8.8", QPS)
+    desiredQPS.Set("208.67.220.220", QPS)
+    desiredQPS.Set("208.67.222.222", QPS)
+    desiredQPS.Set("216.146.35.35",  QPS)
 
     computedQPS.Set("1.1.1.1", 0)
     computedQPS.Set("1.0.0.1", 0)
@@ -427,7 +434,7 @@ func main() {
     // dispatch tasks for specified resolver to correspodning gor
     for _, task := range tasking {
         
-        log.Println("dispatched:", task, time.Now())        
+        log.Println("dispatched:", task)
         taskCH := resolverToCH[task.resolver]
         taskCH <- task
     }
@@ -457,46 +464,6 @@ func main() {
     // Write dns request results to disk
     process_results(resultCH)
 
-    // time.Sleep(5 * time.Second)
-    // go func(rtCH map[string]chan Task, wg sync.WaitGroup) {
-    //     // fmt.Println("executed anon func to close channels after tasking dispatched")
-    //     // for _, taskCH := range rtCH {
-    //         // defer close(taskCH)
-    //     // }
-    //     wg.Wait()
-    //     // fmt.Println("tasking channels closed")
-    // }(resolverToCH, wg)
-    // fmt.Println("terminted")
-
-    // Write dns request results to disk
-    // process_results(resultCH)
-
-
-
-
-    // iterate through tasking and dispatch accordingly
-    // i := 0
-    // for _, task := range tasking {
-    //     fmt.Println("task", task)
-    //     wg.Add(1)
-
-    //     go func(task Task, c chan Slash24Result) {
-    //         defer wg.Done()
-    //         result := lookUpSlash24(task.cidr, task.resolver)
-    //         c <- result
-    //     }(task, resultCH)
-
-    //     i++
-    //     if i % 50 == 0  {
-    //         time.Sleep( 10 * time.Second)
-    //     }
-    // }
-    // go func(c chan Slash24Result) {
-    //     defer close(c)
-        // wg.Wait()
-    // }(resultCH)
-// 
-    // process_results(resultCH)
 
     // TODO: parse cnx details from input params
     // TODO: Connect to master node and listen for tasking
