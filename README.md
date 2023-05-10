@@ -47,6 +47,8 @@ docker run \
 rdns.py run --cidr 128.8.0.0/23 --resolvers 1.1.1.1 8.8.8.8 --qps 500
 rdns.py run --cidr 128.8.0.0/24 --resolvers 1.1.1.1 --qps 500
 
+rdns.py run --cidr 128.8.0.0/16 --qps 300 --resolvers 1.1.1.1 8.8.8.8 9.9.9.9 208.67.222.222 64.6.64.6 4.2.2.1 8.26.56.26 84.200.69.80 77.88.8.8 185.228.168.9 156.154.70.1 199.85.126.10 195.46.39.39 74.82.42.42
+
 ```
 
 
@@ -91,7 +93,7 @@ runtime: 44.38510274887085
 # Wil give names, nonames, and timeouts
 python3 rdns.py run --cidr 128.8.0.0/24 128.8.0.0/24 --resolvers 8.8.4.4 159.89.120.99 --workers 5 --qps 500 
 
-# /24 breakdown
+# CIDR breakdown
 /0	16,777,216
 /1	8,388,608
 /2	4,194,304
@@ -116,6 +118,15 @@ python3 rdns.py run --cidr 128.8.0.0/24 128.8.0.0/24 --resolvers 8.8.4.4 159.89.
 /21	8
 /22	4
 /23	2
+
+
+# Resolvers
+ cloudflare: 1.1.1.1 and 1.0.0.1
+ google: 8.8.8.8 and 8.8.4.4
+ Quad9: 9.9.9.9 and 149.112.112.112
+ OpenDNS: 208.67.222.222 and 208.67.220.220
+ Cleanbrowsing: 185.228.168.9 and 185.228.169.9
+ Comodo: 8.26.56.26 and 8.20.247.20
 
 
 
