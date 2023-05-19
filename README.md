@@ -93,7 +93,7 @@ runtime: 44.38510274887085
 # Wil give names, nonames, and timeouts
 python3 rdns.py run --cidr 128.8.0.0/24 128.8.0.0/24 --resolvers 8.8.4.4 159.89.120.99 --workers 5 --qps 500 
 
-# CIDR breakdown
+# Num /24s in CIDR 
 /0	16,777,216
 /1	8,388,608
 /2	4,194,304
@@ -118,17 +118,36 @@ python3 rdns.py run --cidr 128.8.0.0/24 128.8.0.0/24 --resolvers 8.8.4.4 159.89.
 /21	8
 /22	4
 /23	2
+/24 1
 
 
 # Resolvers
- cloudflare: 1.1.1.1 and 1.0.0.1
- google: 8.8.8.8 and 8.8.4.4
- Quad9: 9.9.9.9 and 149.112.112.112
- OpenDNS: 208.67.222.222 and 208.67.220.220
- Cleanbrowsing: 185.228.168.9 and 185.228.169.9
- Comodo: 8.26.56.26 and 8.20.247.20
+```json
+Cloudflare: 1.1.1.1
+Google: 8.8.8.8
+Quad9: 9.9.9.9
+OpenDNS: 208.67.222.222
+Verisign: 64.6.64.6
+Level 3: 4.2.2.1
+DNS.Watch: 84.200.69.80
+Yandex.DNS: 77.88.8.8
+Neustar UltraDNS: 156.154.70.1
+Norton ConnectSafe: 199.85.126.10
 
+HE: 74.82.42.42
 
+cloudflare: 1.1.1.1 and 1.0.0.1
+google: 8.8.8.8 and 8.8.4.4
+Quad9: 9.9.9.9 and 149.112.112.112
+OpenDNS: 208.67.222.222 and 208.67.220.220
+Cleanbrowsing: 185.228.168.9 and 185.228.169.9
+Comodo: 8.26.56.26 and 8.20.247.20
+
+// works but times out after two runs of a /16 at 300 qps
+Quad9: 9.9.9.9
+SafeDNS: 195.46.39.39
+Cleaning Browsing: 185.228.168.9
+// Comodo: 8.26.56.26. lasted like 4-5 runs
 
 # Resolvers
 128.8.127.4 from server 1.0.0.1 in 23 ms.

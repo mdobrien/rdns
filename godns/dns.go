@@ -5,12 +5,13 @@ import (
     "errors"
     "fmt"
     "log"
+    // "math"
     "net"
     "os"
     "strconv"
     "sync"
     "time"
-    
+
     "github.com/cornelk/hashmap"
     "github.com/miekg/dns"
     "github.com/shogo82148/go-shuffle"
@@ -29,7 +30,7 @@ var computedQPS = hashmap.New[string, int]()
 var TASKING_PATH = "/tmp/tasking.json"
 var RESOLVERS_PATH = "/tmp/resolvers.json"
 var DATA_DIR = "/data/"
-var QPS = 300
+var QPS = 500
 
 // var resolverToLatency = hashmap.New[string, int]()
 
@@ -86,9 +87,13 @@ func rdns(lookupIP string, dnsServer string) (string, error) {
     // get available port
     var port int
     for port == 0 {
-        if ports.Empty() {
-            time.Sleep(50 * time.Millisecond)
-            fmt.Println("No ports")
+        // log.Println(ports.Len(), "ports available")
+        if ports.Len() % 1000 < 10 {
+            log.Println("num ports available", ports.Len())
+        }        
+        if ports.Len() < 5000 {
+            time.Sleep(10 * time.Second)
+            log.Println("Waiting to have at least 60500 ports available")
             continue
         } else {
             val, err := ports.Get(1)
@@ -119,6 +124,7 @@ func rdns(lookupIP string, dnsServer string) (string, error) {
     msg := dns.Msg{}
     msg.SetQuestion(rev, dns.TypePTR)
     resp, _, err := c.Exchange(&msg, dnsServer+":53")
+
     if err != nil {
         // fmt.Println("ERROR", err, "ip: ",ip, "resolver: ", dnsServer)
         return "timeout", errors.New("query timeout: ")
@@ -148,7 +154,7 @@ func rdns(lookupIP string, dnsServer string) (string, error) {
 
 }
 
-func lookUpSlash24(prefix string, dnsServer string) (Slash24Result) {
+func lookUpSlash24(prefix string, dnsServer string, wait int) (Slash24Result) {
     /*
     The function will query th entire /24 of the prefix privded
     If a dns queries times out. There will be a 15s pause before sending the next one
@@ -163,15 +169,13 @@ func lookUpSlash24(prefix string, dnsServer string) (Slash24Result) {
     var timeout_ips []string
     var ipToName = make(map[string]string)
 
-    // TODO: get qps from desiredQPS
-    // qps, _ := desiredQPS.Get(dnsServer)
-    qps := 300
-    wait := 1000 / qps
-    waitTime := time.Duration(wait) * time.Millisecond
+    if wait > 0 {
+        time.Sleep(time.Duration(wait) * time.Millisecond)
+    }
 
     st := time.Now()
     for i := 0; i <= 255; i++ {
-        time.Sleep(waitTime)
+        // time.Sleep(waitTime)
 
         ip := prefix + strconv.Itoa(i)
         // st := time.Now()
@@ -185,9 +189,9 @@ func lookUpSlash24(prefix string, dnsServer string) (Slash24Result) {
             }
             if res == "timeout" {
                 timeout_ips = append(timeout_ips, ip)
-                log.Println("WARN timeoute: ip:", ip, " resolver: ", dnsServer)
+                // log.Println("WARN timeoute: ip:", ip, " resolver: ", dnsServer)
                 // sleep for 10 seconds
-                time.Sleep(1 * time.Second)
+                // time.Sleep(1 * time.Second)
             }
         } else {
             ipToName[ip] = res
@@ -196,13 +200,15 @@ func lookUpSlash24(prefix string, dnsServer string) (Slash24Result) {
 
     end := time.Now()
     elapsed := end.Sub(st).Seconds()
-    log.Println("sec/query=", elapsed / 256, ", actual_qps= ", 256 / elapsed, ", desired_qps = ", qps  )
 
     // fmt.Printf("%T %v\n", elapsed, elapsed)
-    results := Slash24Result{dnsServer, timeout_ips, noname_ips, ipToName, prefix, elapsed}
+    result := Slash24Result{dnsServer, timeout_ips, noname_ips, ipToName, prefix, elapsed}
+    if len(timeout_ips) >= 100 {
+        log.Println("resolver=", result.resolver, "prefix=", result.prefix + "0/24", "latency=", result.latency,  "timeouts=",len(timeout_ips), "nonames=",len(noname_ips), "names=",len(ipToName))
+    }
     // fmt.Println("resolver:", dnsServer, "prefix:", prefix, "time:", elapsed )
 
-    return results
+    return result
 }
 
 func write_result(res Slash24Result) {
@@ -326,35 +332,73 @@ func process_results(c chan Slash24Result) {
 }
 
 func rdns_worker(sendCH chan Slash24Result, recvCH chan Task, signalCH chan int, resolver string, wg sync.WaitGroup) {
+    
     defer wg.Done()
-    // fmt.Println("worker for: ", resolver)
-
-
-
     var lookup_wg sync.WaitGroup
+    // var result Slash24Result
+    // For some reason I do not understand updateInteval controls the size of the batches
+    batchSize := 15
+    batchSleep := 12
+    updateInterval := 5
+    resultCH := make(chan Slash24Result, 16777216)
+    wait := 0
 
     i := 0
+    // updateBatching := true
     for task := range recvCH {
+        updateBatching := (i % updateInterval == 0)
+
         if task.resolver == "" {
+        // if task.resolver == "" || i == 11 {
             // received terminate signal
             // break from recv on recvCH
             break
         }
             lookup_wg.Add(1)
 
-            go func(task Task, c chan Slash24Result) {
-                defer lookup_wg.Done()
-                log.Println("processing: ", task)
-                result := lookUpSlash24(task.cidr, task.resolver)
-                // fmt.Println("result:", result)
-                sendCH <- result
-            }(task, sendCH)
+        go func(updateBatching *bool, task Task, c chan Slash24Result, resultCH chan Slash24Result, wait int) {
+            defer lookup_wg.Done()
+            log.Println("processing: ", task)
+            result := lookUpSlash24(task.cidr, task.resolver, wait)
+            sendCH <- result
 
-            i++
-            if i % 50 == 0  {
-                time.Sleep( 2 * time.Second)
+            log.Println("updateBatching:",*updateBatching, updateBatching)
+            if *updateBatching {
+                resultCH <- result
             }
+
+
+        }(&updateBatching, task, sendCH, resultCH, wait)
+
+        if updateBatching {
+            result := <- resultCH    
+            qps := float64(len(result.timeout_ips) + len(result.noname_ips) + len(result.ipToName)) / result.latency
+
+            // batchSize 
+            // batchSize := int(math.Round(float64(QPS) /qps))
+            // batchSize := (QPS / int(qps)) + 1
+            batchSize := 100
+            // batchSleep
+            // batchSleep := result.latency
+            batchSleep := 100
+            // updateInterval := 100
+            updateBatching := false
+
+            // Wait
+            targetQPS, _ := desiredQPS.Get(result.resolver)
+            wait := 1000 / targetQPS
+
+            log.Println("updated values i=", i, ",elapsedTime =", result.latency, ", computed QPS=", qps, ", wait=", wait, ", batchSize=", batchSize, &batchSize,  ", batchSleep=", batchSleep, &batchSleep, 
+               "updateBatching,", updateBatching, &updateBatching,  updateInterval)
         }
+
+        if (i != 0) && (i % updateInterval == 0)  {
+            log.Println("sleep for processing - resolver:", resolver, "batchSize: ", batchSize, &batchSize, "batchSleep:", batchSleep, &batchSleep)
+            time.Sleep( time.Duration(batchSleep) * time.Second)
+            log.Println(task.resolver, "completed", i, " tasks")
+        }
+        i++
+    }
   
     // signal this worker finished processing tasking 
     lookup_wg.Wait()
@@ -374,9 +418,11 @@ func main() {
     desiredQPS.Set("1.0.0.1", QPS)
     desiredQPS.Set("8.8.4.4", QPS)
     desiredQPS.Set("8.8.8.8", QPS)
+    desiredQPS.Set("9.9.9.9", QPS)
     desiredQPS.Set("208.67.220.220", QPS)
     desiredQPS.Set("208.67.222.222", QPS)
     desiredQPS.Set("216.146.35.35",  QPS)
+    desiredQPS.Set("74.82.42.42",  QPS)
 
     computedQPS.Set("1.1.1.1", 0)
     computedQPS.Set("1.0.0.1", 0)
@@ -385,6 +431,7 @@ func main() {
     computedQPS.Set("208.67.220.220", 0)
     computedQPS.Set("208.67.222.222", 0)
     computedQPS.Set("216.146.35.35", 0)
+
 
     
     // init ports
