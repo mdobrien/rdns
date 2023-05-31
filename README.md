@@ -1,10 +1,7 @@
 # rdns
+	* completed a /14 (524288 ips) in 1523s (25.38m)
+	* 25.37*((2^24)/524288)
 
-# IDEAS
- - The goal is to create a distrubuted systems that can dynimcally scale number of works based
- IPV4 spaces, desired time to have tasking completed, queries per second
- - Create service to discover public resolvers executed recursive queries. This ips of ther resolves will then be used by the workers for executing DNS queries 
- - 
 
 # Quick start
 ```bash
@@ -40,27 +37,24 @@ docker run \
 	-ti \
 	--volume $RDNS_HOME/rdns.py:/rdns/src/rdns.py \
 	--volume  $RDNS_HOME/godns/dns.go:/rdns/src/dns.go \
-	rdns:test \
+	rdns \
 	/bin/bash
 
+# Next goal
+rdns.py run --cidr 128.0.0.0/9 --resolvers 64.6.64.6 156.154.70.1  199.85.126.10  199.85.127.20 1.1.1.1  1.0.0.1  8.8.8.8  8.8.4.4  208.67.222.222  208.67.220.220 209.244.0.3 209.244.0.4 74.82.42.42 149.112.122.10  --qps 500
+
+# Goat resolver combo this far
+rdns.py run --cidr 128.0.0.0/10 --resolvers 64.6.64.6 156.154.70.1 199.85.126.10 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 208.67.222.222 208.67.220.220 --qps 500
+# Passed goal
+rdns.py run --cidr 128.0.0.0/13 --resolvers 64.6.64.6 156.154.70.1 199.85.126.10 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 208.67.222.222 208.67.220.220 --qps 500
+rb && rdns.py run --cidr     128.0.0.0/14 --resolvers 1.1.1.1 8.8.8.8 8.8.4.4 1.0.0.1 74.82.42.42 208.67.222.222 4.2.2.1 --qps 500
+rb && rdns.py run --cidr     66.0.0.0/15 --resolvers 1.1.1.1 8.8.8.8 8.8.4.4 1.0.0.1 74.82.42.42 208.67.222.222 4.2.2.1 --qps 500
 # example run
 rdns.py run --cidr 128.8.0.0/23 --resolvers 1.1.1.1 8.8.8.8 --qps 500
 rdns.py run --cidr 128.8.0.0/24 --resolvers 1.1.1.1 --qps 500
-
+rdns.py run --cidr     66.30.0.0/16 --resolvers 1.1.1.1 1.0.0.1 8.8.4.4 8.8.8.8 --qps 500
 rdns.py run --cidr 128.8.0.0/16 --qps 300 --resolvers 1.1.1.1 8.8.8.8 9.9.9.9 208.67.222.222 64.6.64.6 4.2.2.1 8.26.56.26 84.200.69.80 77.88.8.8 185.228.168.9 156.154.70.1 199.85.126.10 195.46.39.39 74.82.42.42
 
-```
-
-
-# Current stats
-```
-root@8a50181e61ca:~# python3 rdns.py run --cidr 128.8.0.0/24 --resolvers 1.1.1.1 --qps 500
-#names/#queries: 66 / 256
-sent DNS querys for 44.38332557678223s
-writing results to /data/rdns.json
- Elapse time writing results to disk: 0.0008902549743652344s
-wrote files to disk
-runtime: 44.38510274887085
 ```
 
 
@@ -82,16 +76,33 @@ runtime: 44.38510274887085
 	python3 ../rdns.py run --cidr 129.2.0.0/16  --resolvers 1.1.1.1 --qps 500 # UMD
 	python3 ../rdns.py run --cidr 147.222.0.0/16  --resolvers 1.1.1.1 --qps 500 # Gonzaga University
 
-	# good test
-	python3 ../rdns.py run --cidr 128.2.0.0/19 --resolvers 1.0.0.1 1.1.1.1 8.8.4.4 8.8.8.8 208.67.220.220 208.67.222.222 216.146.35.35 --workers 5 --qps 500
 
-	python3 ../rdns.py run --cidr 128.8.0.0/16 --resolvers 1.0.0.1 1.1.1.1 134.195.4.2 149.112.112.112 185.228.168.9 185.228.169.9 195.46.39.39 195.46.39.40 205.171.2.65 205.171.3.65 208.67.220.220 208.67.222.222 216.146.35.35 216.146.36.36 64.6.64.6 64.6.65.6 74.82.42.42 76.223.122.150 76.76.10.0 76.76.19.19 76.76.2.0 77.88.8.1 77.88.8.8 8.20.247.20 8.26.56.26 8.8.4.4 8.8.8.8 84.200.69.80 84.200.70.40 9.9.9.9 --workers 5 --qps 500
+# Resolvers
+```json
+HE: 74.82.42.42
 
+D-root: 199.7.91.13 and 199.7.83.42 // elapsedTime = 7.6032842 , computed QPS= 33.669660802630524
+Verisign: 64.6.64.6  // elapsedTime = 12.1183899 , computed QPS= 21.12491858344977
+Level 3: 4.2.2.1  // elapsedTime = 12.2512783 , computed QPS= 20.89577868784517
+Neustar UltraDNS: 156.154.70.1 156.154.71.1 // elapsedTime = 9.3187372 , computed QPS= 27.471533374715193
+Norton ConnectSafe: 199.85.126.10 //elapsedTime = 11.7808889 , computed QPS= 21.730109007309284
+cloudflare: 1.1.1.1 and 1.0.0.1
+google: 8.8.8.8 and 8.8.4.4
+OpenDNS: 208.67.222.222 and 208.67.220.220  // elapsedTime = 10.6234269 , computed QPS= 24.097685465318165
 
-	python3 rdns.py run --cidr 128.2.0.0/20 --resolvers 1.0.0.1 1.1.1.1 8.8.4.4 8.8.8.8 208.67.220.220 208.67.222.222 216.146.35.35 --workers 5 --qps 500
+// To slow
+Quad 9: 9.9.9.9 and 149.112.112.112
+Cleanbrowsing: 185.228.168.9 and 185.228.169.9. // 10 qps
+Comodo: 8.26.56.26 and 8.20.247.20
+DNS.Watch: 84.200.69.80
 
-# Wil give names, nonames, and timeouts
-python3 rdns.py run --cidr 128.8.0.0/24 128.8.0.0/24 --resolvers 8.8.4.4 159.89.120.99 --workers 5 --qps 500 
+// works but times out after two runs of a /16 at 300 qps
+Quad9: 9.9.9.9
+SafeDNS: 195.46.39.39
+Cleaning Browsing: 185.228.168.9
+
+// Comodo: 8.26.56.26. lasted like 4-5 runs
+```
 
 # Num /24s in CIDR 
 /0	16,777,216
@@ -120,66 +131,11 @@ python3 rdns.py run --cidr 128.8.0.0/24 128.8.0.0/24 --resolvers 8.8.4.4 159.89.
 /23	2
 /24 1
 
+# ChatGPT 
+List another 100 public resolves in that format. The resolvers must be new and not previously given. If the ip Varies, specify those ips as its own result. Return in this format "ServiceName, ip1, ip2". Remove any spaces in the service name.
 
-# Resolvers
-```json
-Cloudflare: 1.1.1.1
-Google: 8.8.8.8
-Quad9: 9.9.9.9
-OpenDNS: 208.67.222.222
-Verisign: 64.6.64.6
-Level 3: 4.2.2.1
-DNS.Watch: 84.200.69.80
-Yandex.DNS: 77.88.8.8
-Neustar UltraDNS: 156.154.70.1
-Norton ConnectSafe: 199.85.126.10
+# DNS query
+echo "Comodo Secure DNS,8.26.56.26" ; dig @8.26.56.26 -x 128.8.0.0 +noall +answer +stats +timeout=1 | awk '/Query time:/ {print $4} /^[^;]/ {print $NF}' ; echo ""
 
-HE: 74.82.42.42
-
-cloudflare: 1.1.1.1 and 1.0.0.1
-google: 8.8.8.8 and 8.8.4.4
-Quad9: 9.9.9.9 and 149.112.112.112
-OpenDNS: 208.67.222.222 and 208.67.220.220
-Cleanbrowsing: 185.228.168.9 and 185.228.169.9
-Comodo: 8.26.56.26 and 8.20.247.20
-
-// works but times out after two runs of a /16 at 300 qps
-Quad9: 9.9.9.9
-SafeDNS: 195.46.39.39
-Cleaning Browsing: 185.228.168.9
-// Comodo: 8.26.56.26. lasted like 4-5 runs
-
-# Resolvers
-128.8.127.4 from server 1.0.0.1 in 23 ms.
-128.8.127.4 from server 1.1.1.1 in 12 ms.
-128.8.127.4 from server 134.195.4.2 in 74 ms.
-128.8.127.4 from server 149.112.112.112 in 6 ms.
-128.8.127.4 from server 185.228.168.9 in 8 ms.
-128.8.127.4 from server 185.228.169.9 in 482 ms.
-128.8.127.4 from server 195.46.39.39 in 8 ms.
-128.8.127.4 from server 195.46.39.40 in 11 ms.
-128.8.127.4 from server 205.171.2.65 in 10 ms.
-128.8.127.4 from server 205.171.3.65 in 83 ms.
-128.8.127.4 from server 208.67.220.220 in 15 ms.
-128.8.127.4 from server 208.67.222.222 in 19 ms.
-128.8.127.4 from server 216.146.35.35 in 23 ms.
-128.8.127.4 from server 216.146.36.36 in 64 ms.
-128.8.127.4 from server 64.6.64.6 in 81 ms.
-128.8.127.4 from server 64.6.65.6 in 25 ms.
-128.8.127.4 from server 74.82.42.42 in 9 ms.
-128.8.127.4 from server 76.223.122.150 in 11 ms.
-128.8.127.4 from server 76.76.10.0 in 21 ms.
-128.8.127.4 from server 76.76.19.19 in 11 ms.
-128.8.127.4 from server 76.76.2.0 in 14 ms.
-128.8.127.4 from server 77.88.8.1 in 290 ms.
-128.8.127.4 from server 77.88.8.8 in 344 ms.
-128.8.127.4 from server 8.20.247.20 in 87 ms.
-128.8.127.4 from server 8.26.56.26 in 15 ms.
-128.8.127.4 from server 8.8.4.4 in 7 ms.
-128.8.127.4 from server 8.8.8.8 in 16 ms.
-128.8.127.4 from server 84.200.69.80 in 406 ms.
-128.8.127.4 from server 84.200.70.40 in 299 ms.
-128.8.127.4 from server 9.9.9.9 in 13 ms.
-
-- does not work: dig +time=2 +short +identify @159.89.120.99 cs.umd.edu 
-
+# Sort by third column 
+sort -nk3 -t'-' test.txt

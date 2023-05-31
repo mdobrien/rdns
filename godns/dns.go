@@ -4,6 +4,7 @@ import (
     "encoding/json"
     "errors"
     "fmt"
+    "io"
     "log"
     // "math"
     "net"
@@ -27,12 +28,14 @@ be sent until one is available.
 var ports = queue.New(1)
 var desiredQPS = hashmap.New[string, int]()
 var computedQPS = hashmap.New[string, int]()
-var TASKING_PATH = "/tmp/tasking.json"
-var RESOLVERS_PATH = "/tmp/resolvers.json"
+
 var DATA_DIR = "/data/"
+var LOG_FILE = "/root/debug.log"
+var RESOLVERS_PATH = "/tmp/resolvers.json"
+var TASKING_PATH = "/tmp/tasking.json"
 var QPS = 500
 
-// var resolverToLatency = hashmap.New[string, int]()
+// var resolverToduration = hashmap.New[string, int]()
 
 // var ipTocount = hashmap.New[string, int]()
 // var start = time.Now()
@@ -54,7 +57,8 @@ type Slash24Result struct {
     noname_ips []string
     ipToName map[string]string
     prefix string
-    latency float64
+    duration float64
+    timeStamp time.Time
 }
 
 type ResolverStats struct {
@@ -64,10 +68,13 @@ type ResolverStats struct {
 }  
 
 
-func init_logger() {
+
+func init_logger(file *os.File) {
     // config logger
-    log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+    // Set output to write to both stdout and the file
+    log.SetOutput(io.MultiWriter(os.Stdout, file))
 }
+
 func rdns(lookupIP string, dnsServer string) (string, error) {
     /*
 
@@ -88,13 +95,14 @@ func rdns(lookupIP string, dnsServer string) (string, error) {
     var port int
     for port == 0 {
         // log.Println(ports.Len(), "ports available")
-        if ports.Len() % 1000 < 10 {
+        if ports.Len() % 1000 < 3 {
             log.Println("num ports available", ports.Len())
         }        
         if ports.Len() < 5000 {
-            time.Sleep(10 * time.Second)
-            log.Println("Waiting to have at least 60500 ports available")
-            continue
+            log.Println(dnsServer, "Waiting to have at least 50000 ports available")
+            for ports.Len() < 50000 {
+                time.Sleep(10 * time.Second)
+            }
         } else {
             val, err := ports.Get(1)
             if err != nil {
@@ -202,9 +210,9 @@ func lookUpSlash24(prefix string, dnsServer string, wait int) (Slash24Result) {
     elapsed := end.Sub(st).Seconds()
 
     // fmt.Printf("%T %v\n", elapsed, elapsed)
-    result := Slash24Result{dnsServer, timeout_ips, noname_ips, ipToName, prefix, elapsed}
-    if len(timeout_ips) >= 100 {
-        log.Println("resolver=", result.resolver, "prefix=", result.prefix + "0/24", "latency=", result.latency,  "timeouts=",len(timeout_ips), "nonames=",len(noname_ips), "names=",len(ipToName))
+    result := Slash24Result{dnsServer, timeout_ips, noname_ips, ipToName, prefix, elapsed, time.Now()}
+    if len(timeout_ips) >= 100  {
+        log.Println("resolver=", result.resolver, "prefix=", result.prefix + "0/24", "duration=", result.duration,  "timeouts=",len(timeout_ips), "nonames=",len(noname_ips), "names=",len(ipToName))
     }
     // fmt.Println("resolver:", dnsServer, "prefix:", prefix, "time:", elapsed )
 
@@ -309,7 +317,7 @@ func process_results(c chan Slash24Result) {
         total_timeouts += timeouts
         total_nonames +=nonames
 
-        log.Println("resolver=", res.resolver, "prefix=", res.prefix + "0/24", "latency=", res.latency,  "timeouts=",timeouts, "nonames=",nonames, "names=",names)
+        log.Println("resolver=", res.resolver, "prefix=", res.prefix + "0/24", "duration=", res.duration,  "timeouts=",timeouts, "nonames=",nonames, "names=",names, "ts=", res.timeStamp.Format("2006-01-02 15:04:05.000"), res.timeStamp.UnixMilli())
         val, ok := stats[res.resolver]
         if ok {
             val.num_queries += names+nonames+timeouts
@@ -337,12 +345,12 @@ func rdns_worker(sendCH chan Slash24Result, recvCH chan Task, signalCH chan int,
     var lookup_wg sync.WaitGroup
     // var result Slash24Result
     // For some reason I do not understand updateInteval controls the size of the batches
-    batchSize := 15
+    batchSize := 5
     batchSleep := 12
-    updateInterval := 5
+    updateInterval := 7
     resultCH := make(chan Slash24Result, 16777216)
     wait := 0
-
+    log.Println("stared worker for", resolver)
     i := 0
     // updateBatching := true
     for task := range recvCH {
@@ -358,11 +366,12 @@ func rdns_worker(sendCH chan Slash24Result, recvCH chan Task, signalCH chan int,
 
         go func(updateBatching *bool, task Task, c chan Slash24Result, resultCH chan Slash24Result, wait int) {
             defer lookup_wg.Done()
+            task.resolver = resolver
             log.Println("processing: ", task)
             result := lookUpSlash24(task.cidr, task.resolver, wait)
             sendCH <- result
 
-            log.Println("updateBatching:",*updateBatching, updateBatching)
+            // log.Println("updateBatching:",*updateBatching, updateBatching)
             if *updateBatching {
                 resultCH <- result
             }
@@ -372,15 +381,15 @@ func rdns_worker(sendCH chan Slash24Result, recvCH chan Task, signalCH chan int,
 
         if updateBatching {
             result := <- resultCH    
-            qps := float64(len(result.timeout_ips) + len(result.noname_ips) + len(result.ipToName)) / result.latency
+            qps := float64(len(result.timeout_ips) + len(result.noname_ips) + len(result.ipToName)) / result.duration
 
             // batchSize 
             // batchSize := int(math.Round(float64(QPS) /qps))
             // batchSize := (QPS / int(qps)) + 1
-            batchSize := 100
+            batchSize := 2
             // batchSleep
-            // batchSleep := result.latency
-            batchSleep := 100
+            // batchSleep := result.duration
+            batchSleep := 12
             // updateInterval := 100
             updateBatching := false
 
@@ -388,11 +397,11 @@ func rdns_worker(sendCH chan Slash24Result, recvCH chan Task, signalCH chan int,
             targetQPS, _ := desiredQPS.Get(result.resolver)
             wait := 1000 / targetQPS
 
-            log.Println("updated values i=", i, ",elapsedTime =", result.latency, ", computed QPS=", qps, ", wait=", wait, ", batchSize=", batchSize, &batchSize,  ", batchSleep=", batchSleep, &batchSleep, 
+            log.Println(resolver, "updated values i=", i, ",elapsedTime =", result.duration, ", computed QPS=", qps, ", wait=", wait, ", batchSize=", batchSize, &batchSize,  ", batchSleep=", batchSleep, &batchSleep, 
                "updateBatching,", updateBatching, &updateBatching,  updateInterval)
         }
 
-        if (i != 0) && (i % updateInterval == 0)  {
+        if (i != 0) && (i % batchSize == 0)  {
             log.Println("sleep for processing - resolver:", resolver, "batchSize: ", batchSize, &batchSize, "batchSleep:", batchSleep, &batchSleep)
             time.Sleep( time.Duration(batchSleep) * time.Second)
             log.Println(task.resolver, "completed", i, " tasks")
@@ -409,7 +418,13 @@ func rdns_worker(sendCH chan Slash24Result, recvCH chan Task, signalCH chan int,
 
 func main() {
 
-    init_logger()
+    file, err := os.OpenFile(LOG_FILE, os.O_CREATE|os.O_WRONLY, 0666)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    init_logger(file)
+    defer file.Close()
 
     // set desired QPS for resolvers
     // TODO: parse desired qps from tasking req
@@ -423,6 +438,81 @@ func main() {
     desiredQPS.Set("208.67.222.222", QPS)
     desiredQPS.Set("216.146.35.35",  QPS)
     desiredQPS.Set("74.82.42.42",  QPS)
+    desiredQPS.Set("4.2.2.1",  QPS)
+    desiredQPS.Set("156.154.70.1",  QPS)
+    desiredQPS.Set("8.20.247.20",  QPS)
+    desiredQPS.Set("185.228.169.9",  QPS)
+    desiredQPS.Set("208.67.222.222",  QPS)
+    desiredQPS.Set("199.85.126.10",  QPS)
+    desiredQPS.Set("156.154.70.1",  QPS)
+    desiredQPS.Set("84.200.69.80",  QPS)
+    desiredQPS.Set("64.6.64.6",  QPS)
+    desiredQPS.Set("199.7.91.13",  QPS)
+    desiredQPS.Set("199.7.83.42",  QPS)
+    desiredQPS.Set("80.80.80.80",  QPS)
+    desiredQPS.Set("156.154.71.1",  QPS)
+    desiredQPS.Set("84.200.70.40",  QPS)
+    desiredQPS.Set("209.244.0.3",  QPS)
+    desiredQPS.Set("209.244.0.3", QPS)
+    desiredQPS.Set("9.9.9.9", QPS)
+    desiredQPS.Set("199.85.126.30", QPS)
+    desiredQPS.Set("199.85.127.20", QPS)
+    desiredQPS.Set("94.140.14.14", QPS)
+    desiredQPS.Set("94.140.14.140", QPS)
+    desiredQPS.Set("94.140.14.141", QPS)
+    desiredQPS.Set("94.140.14.15", QPS)
+    desiredQPS.Set("94.140.15.15", QPS)
+    desiredQPS.Set("94.140.15.16", QPS)
+    desiredQPS.Set("64.6.65.6", QPS)
+    desiredQPS.Set("185.228.168.9", QPS)
+    desiredQPS.Set("74.82.42.42", QPS)
+    desiredQPS.Set("8.8.4.4", QPS)
+    desiredQPS.Set("8.20.247.20", QPS)
+    desiredQPS.Set("209.244.0.4", QPS)
+    desiredQPS.Set("4.2.2.2", QPS)
+    desiredQPS.Set("149.112.112.10", QPS)
+    desiredQPS.Set("45.90.28.0", QPS)
+    desiredQPS.Set("45.90.30.0", QPS)
+    desiredQPS.Set("195.46.39.39", QPS)
+    desiredQPS.Set("156.154.70.1", QPS)
+    desiredQPS.Set("156.154.71.1", QPS)
+    desiredQPS.Set("199.85.126.10", QPS)
+    desiredQPS.Set("199.85.126.20", QPS)
+    desiredQPS.Set("199.85.127.10", QPS)
+    desiredQPS.Set("199.85.127.30", QPS)
+    desiredQPS.Set("176.103.130.130", QPS)
+    desiredQPS.Set("64.6.64.6", QPS)
+    desiredQPS.Set("8.26.56.26", QPS)
+    desiredQPS.Set("149.112.122.10", QPS)
+    desiredQPS.Set("149.112.112.112", QPS)
+    desiredQPS.Set("149.112.121.10", QPS)
+    desiredQPS.Set("9.9.9.10", QPS)
+    desiredQPS.Set("185.228.168.10", QPS)
+    desiredQPS.Set("176.103.130.131", QPS)
+    desiredQPS.Set("75.75.76.76", QPS)
+    desiredQPS.Set("1.0.0.1", QPS)
+    desiredQPS.Set("75.75.75.75", QPS)
+    desiredQPS.Set("8.8.8.8", QPS)
+    desiredQPS.Set("195.46.39.40", QPS)
+    desiredQPS.Set("4.2.2.1", QPS)
+    desiredQPS.Set("208.67.222.222", QPS)
+    desiredQPS.Set("185.228.168.168", QPS)
+    desiredQPS.Set("1.1.1.1", QPS)
+    desiredQPS.Set("193.17.47.1", QPS)
+    desiredQPS.Set("185.228.169.11", QPS)
+    desiredQPS.Set("185.228.169.9", QPS)
+    desiredQPS.Set("185.43.135.1", QPS)
+    desiredQPS.Set("45.11.45.11", QPS)
+    desiredQPS.Set("80.67.169.12", QPS)
+    desiredQPS.Set("80.67.169.40", QPS)
+    desiredQPS.Set("208.67.220.220", QPS)
+    desiredQPS.Set("80.80.80.80", QPS)
+    desiredQPS.Set("80.80.81.81", QPS)
+    desiredQPS.Set("77.88.8.1", QPS)
+    desiredQPS.Set("77.88.8.3", QPS)
+    desiredQPS.Set("77.88.8.7", QPS)
+    desiredQPS.Set("77.88.8.8", QPS)
+
 
     computedQPS.Set("1.1.1.1", 0)
     computedQPS.Set("1.0.0.1", 0)
@@ -453,14 +543,14 @@ func main() {
     // create wait group
     var wg sync.WaitGroup
 
+    buffLen := len(tasking) + 1
     // create channel that will be used to pass results from
      // from workers to processing func
     resultCH := make(chan Slash24Result, 16777216)
     signalCH := make(chan int)
-    
+    taskCH := make(chan Task, buffLen)
     // map that stores task channel for each resolver
-    resolverToCH := make(map[string]chan Task)
-    buffLen := len(tasking) + 1
+    // resolverToCH := make(map[string]chan Task)
 
     // setup channels for passing dns request tasking and
      // and init goroutines to listen for tasking
@@ -471,8 +561,9 @@ func main() {
 
         // create task channels and pair with resolver ip 
         resolver := resolvers[i]
-        taskCH := make(chan Task, buffLen)
-        resolverToCH[resolver] = taskCH
+        // taskCH := make(chan Task, buffLen)
+        // resolverToCH[resolver] = taskCH
+        time.Sleep(1 * time.Second)
 
         // init goroutines to process tasking 
         go rdns_worker(resultCH, taskCH , signalCH, resolver , wg)
@@ -482,13 +573,14 @@ func main() {
     for _, task := range tasking {
         
         log.Println("dispatched:", task)
-        taskCH := resolverToCH[task.resolver]
+        // taskCH := resolverToCH[task.resolver]
         taskCH <- task
     }
 
     // send empty to signal all tasking has been sent
-    for _,resolver := range resolvers {
-        resolverToCH[resolver] <- Task{}
+    for range resolvers {
+        taskCH <- Task{}
+        // resolverToCH[resolver] <- Task{}
     }
 
     // listen for each gor to signal it finished processing tasks
@@ -498,9 +590,9 @@ func main() {
         signals += v
 
         if signals == len(resolvers) {
-            for _, taskCH := range resolverToCH {
-                defer close(taskCH)
-            }
+            // for _, taskCH := range resolverToCH {
+            defer close(taskCH)
+            // }
             // close(resultCH)
             break
         }
