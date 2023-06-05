@@ -6,7 +6,8 @@ import (
     "fmt"
     "io"
     "log"
-    // "math"
+    "math"
+    // "math/rand"
     "net"
     "os"
     "strconv"
@@ -28,12 +29,14 @@ be sent until one is available.
 var ports = queue.New(1)
 var desiredQPS = hashmap.New[string, int]()
 var computedQPS = hashmap.New[string, int]()
+var workerBatchSize = hashmap.New[string, int]()
 
 var DATA_DIR = "/data/"
 var LOG_FILE = "/root/debug.log"
 var RESOLVERS_PATH = "/tmp/resolvers.json"
 var TASKING_PATH = "/tmp/tasking.json"
 var QPS = 500
+var bs = 10
 
 // var resolverToduration = hashmap.New[string, int]()
 
@@ -345,67 +348,103 @@ func rdns_worker(sendCH chan Slash24Result, recvCH chan Task, signalCH chan int,
     var lookup_wg sync.WaitGroup
     // var result Slash24Result
     // For some reason I do not understand updateInteval controls the size of the batches
-    batchSize := 5
-    batchSleep := 12
-    updateInterval := 7
+    // batchSize := 2
+    batchSize, _ := workerBatchSize.Get(resolver)
+    _ = batchSize
+    // batchSleep := 12
+    updateInterval := 6
     resultCH := make(chan Slash24Result, 16777216)
+    // intervalCH := make(chan int, batchSize)
     wait := 0
     log.Println("stared worker for", resolver)
-    i := 0
+    i := 1
+    count := 0
+    _ = count
+
+
     // updateBatching := true
     for task := range recvCH {
         updateBatching := (i % updateInterval == 0)
 
-        if task.resolver == "" {
-        // if task.resolver == "" || i == 11 {
-            // received terminate signal
-            // break from recv on recvCH
-            break
-        }
-            lookup_wg.Add(1)
 
+        if i % batchSize == 0 || task.resolver == "" {
+            lookup_wg.Wait()
+
+            // finished processing tasking
+            if task.resolver == "" {
+                break
+            }
+        }
+        task.resolver = resolver
+
+        lookup_wg.Add(1)
         go func(updateBatching *bool, task Task, c chan Slash24Result, resultCH chan Slash24Result, wait int) {
             defer lookup_wg.Done()
             task.resolver = resolver
-            log.Println("processing: ", task)
+            log.Println("processing: ", task.cidr + "0/24")
             result := lookUpSlash24(task.cidr, task.resolver, wait)
+
             sendCH <- result
-
+            // randomNumber := rand.Intn(5) + 1
+            // time.Sleep(time.Duration(randomNumber) * time.Second)
+            // time.Sleep(100 * time.Millisecond)
             // log.Println("updateBatching:",*updateBatching, updateBatching)
-            if *updateBatching {
-                resultCH <- result
-            }
+            qps := float64(len(result.timeout_ips) + len(result.noname_ips) + len(result.ipToName)) / result.duration
+            // log.Println(resolver,  "to=" ,len(result.timeout_ips), "nn=",len(result.noname_ips),"names=",len(result.ipToName), "task duration=", result.duration, ", computed QPS=", qps, "ts=", result.timeStamp.Format("2006-01-02 15:04:05.000"))
 
+            threshold := 3.14
+
+            epsilon := 0.000001 // Define an acceptable tolerance for equality
+
+            if math.Abs(threshold-result.duration) < epsilon {
+                // fmt.Println("threshold is approximately equal to duration")
+            } else if threshold < result.duration {
+                //
+            } else {
+                log.Println("WARN", result, "being rate limited", task)
+            }
+            
+            log.Println(
+                "Finished: ",
+                resolver,
+                task.cidr + "0/24",
+                "to=" ,len(result.timeout_ips),
+                "nn=",len(result.noname_ips),
+                "names=",len(result.ipToName),
+                "task duration=", result.duration,
+                "computed QPS=", qps,
+                "ts=", result.timeStamp.Format("2006-01-02 15:04:05.000"))                        
+
+            // log.Println("Finished: ", task, result.timeStamp)
 
         }(&updateBatching, task, sendCH, resultCH, wait)
 
-        if updateBatching {
-            result := <- resultCH    
-            qps := float64(len(result.timeout_ips) + len(result.noname_ips) + len(result.ipToName)) / result.duration
+        // if updateBatching {
+        //     batchSize++
+        // }
+        // if updateBatching {
+        //     result := <- resultCH    
+        //     qps := float64(len(result.timeout_ips) + len(result.noname_ips) + len(result.ipToName)) / result.duration
 
-            // batchSize 
-            // batchSize := int(math.Round(float64(QPS) /qps))
-            // batchSize := (QPS / int(qps)) + 1
-            batchSize := 2
-            // batchSleep
-            // batchSleep := result.duration
-            batchSleep := 12
-            // updateInterval := 100
-            updateBatching := false
+        //     // batchSize 
+        //     // batchSize := int(math.Round(float64(QPS) /qps))
+        //     // batchSize := (QPS / int(qps)) + 1
+        //     batchSize += 2
+        //     // batchSleep
+        //     // batchSleep := result.duration
+        //     batchSleep := 12
+        //     // updateInterval := 100
+        //     updateBatching := false
 
-            // Wait
-            targetQPS, _ := desiredQPS.Get(result.resolver)
-            wait := 1000 / targetQPS
+        //     // Wait
+        //     targetQPS, _ := desiredQPS.Get(result.resolver)
+        //     wait := 1000 / targetQPS
 
-            log.Println(resolver, "updated values i=", i, ",elapsedTime =", result.duration, ", computed QPS=", qps, ", wait=", wait, ", batchSize=", batchSize, &batchSize,  ", batchSleep=", batchSleep, &batchSleep, 
-               "updateBatching,", updateBatching, &updateBatching,  updateInterval)
-        }
+        //     log.Println(resolver, "updated values i=", i, ",elapsedTime =", result.duration, ", computed QPS=", qps, ", wait=", wait, ", batchSize=", batchSize, &batchSize,  ", batchSleep=", batchSleep, &batchSleep, 
+        //        "updateBatching,", updateBatching, &updateBatching,  updateInterval)
+        // }
 
-        if (i != 0) && (i % batchSize == 0)  {
-            log.Println("sleep for processing - resolver:", resolver, "batchSize: ", batchSize, &batchSize, "batchSleep:", batchSleep, &batchSleep)
-            time.Sleep( time.Duration(batchSleep) * time.Second)
-            log.Println(task.resolver, "completed", i, " tasks")
-        }
+
         i++
     }
   
@@ -415,6 +454,104 @@ func rdns_worker(sendCH chan Slash24Result, recvCH chan Task, signalCH chan int,
     log.Println("Finished tasking for:", resolver)
 
 }
+
+
+// func rdns_worker(sendCH chan Slash24Result, recvCH chan Task, signalCH chan int, resolver string, wg sync.WaitGroup) {
+    
+//     defer wg.Done()
+//     var lookup_wg sync.WaitGroup
+//     // var result Slash24Result
+//     // For some reason I do not understand updateInteval controls the size of the batches
+//     batchSize := 2
+//     // batchSleep := 12
+//     updateInterval := 4
+//     resultCH := make(chan Slash24Result, 16777216)
+//     intervalCH := make(chan int, 1000000)
+//     wait := 0
+//     log.Println("stared worker for", resolver)
+//     i := 0
+//     count := 0
+//     _ = count
+
+
+//     // updateBatching := true
+//     for task := range recvCH {
+//         updateBatching := (i % updateInterval == 0)
+
+//         if task.resolver == "" {
+//         // if task.resolver == "" || i == 11 {
+//             // received terminate signal
+//             // break from recv on recvCH
+//             intervalCH <- 0
+//             break
+//         }
+//             lookup_wg.Add(1)
+
+//         go func(updateBatching *bool, task Task, intervalCH chan int, c chan Slash24Result, resultCH chan Slash24Result, wait int) {
+//             defer lookup_wg.Done()
+//             task.resolver = resolver
+//             log.Println("processing: ", task)
+//             result := lookUpSlash24(task.cidr, task.resolver, wait)
+
+//             sendCH <- result
+//             // randomNumber := rand.Intn(5) + 1
+//             // time.Sleep(time.Duration(randomNumber) * time.Second)
+//             time.Sleep(5 * time.Second)
+//             // log.Println("updateBatching:",*updateBatching, updateBatching)
+//             if *updateBatching {
+//                 // resultCH <- result
+//             }
+//             intervalCH <- 1
+//             log.Println("Finished: ", task, result.timeStamp)
+
+//         }(&updateBatching, task, intervalCH, sendCH, resultCH, wait)
+
+//         // if updateBatching {
+//         //     result := <- resultCH    
+//         //     qps := float64(len(result.timeout_ips) + len(result.noname_ips) + len(result.ipToName)) / result.duration
+
+//         //     // batchSize 
+//         //     // batchSize := int(math.Round(float64(QPS) /qps))
+//         //     // batchSize := (QPS / int(qps)) + 1
+//             // batchSize += 2
+//         //     // batchSleep
+//         //     // batchSleep := result.duration
+//         //     batchSleep := 12
+//         //     // updateInterval := 100
+//         //     updateBatching := false
+
+//         //     // Wait
+//         //     targetQPS, _ := desiredQPS.Get(result.resolver)
+//         //     wait := 1000 / targetQPS
+
+//         //     log.Println(resolver, "updated values i=", i, ",elapsedTime =", result.duration, ", computed QPS=", qps, ", wait=", wait, ", batchSize=", batchSize, &batchSize,  ", batchSleep=", batchSleep, &batchSleep, 
+//         //        "updateBatching,", updateBatching, &updateBatching,  updateInterval)
+//         // }
+
+//         if (i != 0) && (i % batchSize == 0)  {
+//             for v := range intervalCH {
+//                 log.Println(task.cidr, "i=",i, "v=", v, "count=",count, "batchSize=", batchSize)
+//                 if count < batchSize - 1   || v == 0 {
+//                     count := 0
+//                     _ = count
+//                     // time.Sleep(5 * time.Second)
+//                     break
+//                 }
+//                 count += v
+//                 _ = count
+//                 // log.Println(count)
+//             }
+//             log.Println(task.resolver, "completed", i, " tasks")
+//         }
+//         i++
+//     }
+  
+//     // signal this worker finished processing tasking 
+//     lookup_wg.Wait()
+//     signalCH <- 1
+//     log.Println("Finished tasking for:", resolver)
+
+// }
 
 func main() {
 
@@ -442,9 +579,7 @@ func main() {
     desiredQPS.Set("156.154.70.1",  QPS)
     desiredQPS.Set("8.20.247.20",  QPS)
     desiredQPS.Set("185.228.169.9",  QPS)
-    desiredQPS.Set("208.67.222.222",  QPS)
     desiredQPS.Set("199.85.126.10",  QPS)
-    desiredQPS.Set("156.154.70.1",  QPS)
     desiredQPS.Set("84.200.69.80",  QPS)
     desiredQPS.Set("64.6.64.6",  QPS)
     desiredQPS.Set("199.7.91.13",  QPS)
@@ -454,7 +589,6 @@ func main() {
     desiredQPS.Set("84.200.70.40",  QPS)
     desiredQPS.Set("209.244.0.3",  QPS)
     desiredQPS.Set("209.244.0.3", QPS)
-    desiredQPS.Set("9.9.9.9", QPS)
     desiredQPS.Set("199.85.126.30", QPS)
     desiredQPS.Set("199.85.127.20", QPS)
     desiredQPS.Set("94.140.14.14", QPS)
@@ -466,7 +600,6 @@ func main() {
     desiredQPS.Set("64.6.65.6", QPS)
     desiredQPS.Set("185.228.168.9", QPS)
     desiredQPS.Set("74.82.42.42", QPS)
-    desiredQPS.Set("8.8.4.4", QPS)
     desiredQPS.Set("8.20.247.20", QPS)
     desiredQPS.Set("209.244.0.4", QPS)
     desiredQPS.Set("4.2.2.2", QPS)
@@ -474,14 +607,11 @@ func main() {
     desiredQPS.Set("45.90.28.0", QPS)
     desiredQPS.Set("45.90.30.0", QPS)
     desiredQPS.Set("195.46.39.39", QPS)
-    desiredQPS.Set("156.154.70.1", QPS)
     desiredQPS.Set("156.154.71.1", QPS)
-    desiredQPS.Set("199.85.126.10", QPS)
     desiredQPS.Set("199.85.126.20", QPS)
     desiredQPS.Set("199.85.127.10", QPS)
     desiredQPS.Set("199.85.127.30", QPS)
     desiredQPS.Set("176.103.130.130", QPS)
-    desiredQPS.Set("64.6.64.6", QPS)
     desiredQPS.Set("8.26.56.26", QPS)
     desiredQPS.Set("149.112.122.10", QPS)
     desiredQPS.Set("149.112.112.112", QPS)
@@ -490,12 +620,10 @@ func main() {
     desiredQPS.Set("185.228.168.10", QPS)
     desiredQPS.Set("176.103.130.131", QPS)
     desiredQPS.Set("75.75.76.76", QPS)
-    desiredQPS.Set("1.0.0.1", QPS)
     desiredQPS.Set("75.75.75.75", QPS)
     desiredQPS.Set("8.8.8.8", QPS)
     desiredQPS.Set("195.46.39.40", QPS)
     desiredQPS.Set("4.2.2.1", QPS)
-    desiredQPS.Set("208.67.222.222", QPS)
     desiredQPS.Set("185.228.168.168", QPS)
     desiredQPS.Set("1.1.1.1", QPS)
     desiredQPS.Set("193.17.47.1", QPS)
@@ -505,7 +633,6 @@ func main() {
     desiredQPS.Set("45.11.45.11", QPS)
     desiredQPS.Set("80.67.169.12", QPS)
     desiredQPS.Set("80.67.169.40", QPS)
-    desiredQPS.Set("208.67.220.220", QPS)
     desiredQPS.Set("80.80.80.80", QPS)
     desiredQPS.Set("80.80.81.81", QPS)
     desiredQPS.Set("77.88.8.1", QPS)
@@ -514,14 +641,79 @@ func main() {
     desiredQPS.Set("77.88.8.8", QPS)
 
 
-    computedQPS.Set("1.1.1.1", 0)
-    computedQPS.Set("1.0.0.1", 0)
-    computedQPS.Set("8.8.4.4", 0)
-    computedQPS.Set("8.8.8.8", 0)
-    computedQPS.Set("208.67.220.220", 0)
-    computedQPS.Set("208.67.222.222", 0)
-    computedQPS.Set("216.146.35.35", 0)
-
+    workerBatchSize.Set("64.6.64.6",  3)
+    workerBatchSize.Set("9.9.9.9", 3)
+    workerBatchSize.Set("156.154.70.1", 3)
+    workerBatchSize.Set("199.85.126.10",  3)
+    workerBatchSize.Set("1.1.1.1", bs)
+    workerBatchSize.Set("1.0.0.1", bs)
+    workerBatchSize.Set("8.8.4.4", bs)
+    workerBatchSize.Set("8.8.8.8", bs)
+    workerBatchSize.Set("208.67.220.220", bs)
+    workerBatchSize.Set("208.67.222.222", 3)
+    workerBatchSize.Set("216.146.35.35",  bs)
+    workerBatchSize.Set("74.82.42.42",  bs)
+    workerBatchSize.Set("4.2.2.1",  bs)
+    workerBatchSize.Set("8.20.247.20",  bs)
+    workerBatchSize.Set("185.228.169.9",  bs)
+    workerBatchSize.Set("84.200.69.80",  bs)
+    workerBatchSize.Set("199.7.91.13",  bs)
+    workerBatchSize.Set("199.7.83.42",  bs)
+    workerBatchSize.Set("80.80.80.80",  bs)
+    workerBatchSize.Set("156.154.71.1",  bs)
+    workerBatchSize.Set("84.200.70.40",  bs)
+    workerBatchSize.Set("209.244.0.3",  bs)
+    workerBatchSize.Set("209.244.0.3", bs)
+    workerBatchSize.Set("199.85.126.30", bs)
+    workerBatchSize.Set("199.85.127.20", bs)
+    workerBatchSize.Set("94.140.14.14", bs)
+    workerBatchSize.Set("94.140.14.140", bs)
+    workerBatchSize.Set("94.140.14.141", bs)
+    workerBatchSize.Set("94.140.14.15", bs)
+    workerBatchSize.Set("94.140.15.15", bs)
+    workerBatchSize.Set("94.140.15.16", bs)
+    workerBatchSize.Set("64.6.65.6", bs)
+    workerBatchSize.Set("185.228.168.9", bs)
+    workerBatchSize.Set("74.82.42.42", bs)
+    workerBatchSize.Set("8.20.247.20", bs)
+    workerBatchSize.Set("209.244.0.4", bs)
+    workerBatchSize.Set("4.2.2.2", bs)
+    workerBatchSize.Set("149.112.112.10", bs)
+    workerBatchSize.Set("45.90.28.0", bs)
+    workerBatchSize.Set("45.90.30.0", bs)
+    workerBatchSize.Set("195.46.39.39", bs)
+    workerBatchSize.Set("156.154.71.1", bs)
+    workerBatchSize.Set("199.85.126.20", bs)
+    workerBatchSize.Set("199.85.127.10", bs)
+    workerBatchSize.Set("199.85.127.30", bs)
+    workerBatchSize.Set("176.103.130.130", bs)
+    workerBatchSize.Set("8.26.56.26", bs)
+    workerBatchSize.Set("149.112.122.10", bs)
+    workerBatchSize.Set("149.112.112.112", bs)
+    workerBatchSize.Set("149.112.121.10", bs)
+    workerBatchSize.Set("9.9.9.10", bs)
+    workerBatchSize.Set("185.228.168.10", bs)
+    workerBatchSize.Set("176.103.130.131", bs)
+    workerBatchSize.Set("75.75.76.76", bs)
+    workerBatchSize.Set("75.75.75.75", bs)
+    workerBatchSize.Set("8.8.8.8", bs)
+    workerBatchSize.Set("195.46.39.40", bs)
+    workerBatchSize.Set("4.2.2.1", bs)
+    workerBatchSize.Set("185.228.168.168", bs)
+    workerBatchSize.Set("1.1.1.1", bs)
+    workerBatchSize.Set("193.17.47.1", bs)
+    workerBatchSize.Set("185.228.169.11", bs)
+    workerBatchSize.Set("185.228.169.9", bs)
+    workerBatchSize.Set("185.43.135.1", bs)
+    workerBatchSize.Set("45.11.45.11", bs)
+    workerBatchSize.Set("80.67.169.12", bs)
+    workerBatchSize.Set("80.67.169.40", bs)
+    workerBatchSize.Set("80.80.80.80", bs)
+    workerBatchSize.Set("80.80.81.81", bs)
+    workerBatchSize.Set("77.88.8.1", bs)
+    workerBatchSize.Set("77.88.8.3", bs)
+    workerBatchSize.Set("77.88.8.7", bs)
+    workerBatchSize.Set("77.88.8.8", bs)
 
     
     // init ports
@@ -537,7 +729,7 @@ func main() {
 
     // get tasking 
     tasking := recv_tasking(TASKING_PATH)
-    log.Println("tasking:", tasking)
+    log.Println("tasking:", len(tasking))
     // fmt.Println()
 
     // create wait group
@@ -611,7 +803,5 @@ func main() {
     // TODO: send dns results to mysql db
     // TODO: test cnx to storage node
     // TODO: add rate limiting 
-
-
-
 }
+
