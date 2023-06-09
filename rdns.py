@@ -76,8 +76,8 @@ runtime: 4619.0649337768555
     yes    /12   1,048,576
     yes    /11   2,097,152
     yes    /10   4,194,304
-    N/A    /9    8,388,608
-    N/A    /8    16,777,216
+    yes    /9    8,388,608
+    yes    /8    16,777,216
     N/A    /7    33,554,432
     N/A    /6    67,108,864
     N/A    /5    134,217,728
@@ -427,16 +427,30 @@ def cli_clean(args):
 				logging.debug(f'removed: {path}')
 
 def cli_test(args):
-	if os.path.exists(DATA_DIR):
-			contents = os.listdir(DATA_DIR)
-			for folder in contents:
-				path = DATA_DIR + folder + '/'
-				logging.info(f'data_dir: {path}')
-				for file in os.listdir(path):
-					logging.debug(f'{path + file}')
-					os.remove(path + file)
-				# os.rmdir(path)
-				breakpoint()
+	DATA_DIR_LOCAL = '/Users/mike/nerdish/dabiz/rdns/data/'
+	outdata = ''
+	for filename in os.listdir(DATA_DIR_LOCAL):
+		if "128" in filename:
+			with open(DATA_DIR_LOCAL + filename, "r") as f:
+				data = f.read()
+				data_json = json.loads(data)
+				# print (f'{data_json}')
+
+				for ip in data_json:
+					outdata += ip + ' - ' + data_json[ip] + '\n'
+
+	print (outdata)
+		# break
+	# if os.path.exists(DATA_DIR):
+	# 		contents = os.listdir(DATA_DIR)
+	# 		for folder in contents:
+	# 			path = DATA_DIR + folder + '/'
+	# 			logging.info(f'data_dir: {path}')
+	# 			for file in os.listdir(path):
+	# 				logging.debug(f'{path + file}')
+	# 				os.remove(path + file)
+	# 			# os.rmdir(path)
+	# 			breakpoint()
 	
 	pass
 

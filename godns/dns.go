@@ -10,6 +10,7 @@ import (
     // "math/rand"
     "net"
     "os"
+    "runtime"
     "strconv"
     "sync"
     "time"
@@ -98,13 +99,20 @@ func rdns(lookupIP string, dnsServer string) (string, error) {
     var port int
     for port == 0 {
         // log.Println(ports.Len(), "ports available")
-        if ports.Len() % 1000 < 3 {
-            log.Println("num ports available", ports.Len())
+        if ports.Len() % 1000 == 0 {
+            numGoroutines := runtime.NumGoroutine()
+            log.Println(dnsServer, "Number of running Goroutines:", numGoroutines)
         }        
         if ports.Len() < 5000 {
-            log.Println(dnsServer, "Waiting to have at least 50000 ports available")
-            for ports.Len() < 50000 {
+            // log.Println(dnsServer, "Waiting to have at least 50000 ports available")
+            for ports.Len() < 65000 {
                 time.Sleep(10 * time.Second)
+
+                log.Println(dnsServer, "waiting for ports:", ports.Len())
+                numGoroutines := runtime.NumGoroutine()
+                log.Println(dnsServer, "Number of running Goroutines:", numGoroutines)
+
+
             }
         } else {
             val, err := ports.Get(1)
@@ -138,10 +146,12 @@ func rdns(lookupIP string, dnsServer string) (string, error) {
 
     if err != nil {
         // fmt.Println("ERROR", err, "ip: ",ip, "resolver: ", dnsServer)
+        ports.Put(port)
         return "timeout", errors.New("query timeout: ")
     }
     if resp == nil {
         // fmt.Println(ip,"-", dnsServer,"failed PTR look up")
+        ports.Put(port)
         return "a", nil
     }
     // TODO: condense code to single return statement
@@ -365,10 +375,26 @@ func rdns_worker(sendCH chan Slash24Result, recvCH chan Task, signalCH chan int,
     // updateBatching := true
     for task := range recvCH {
         updateBatching := (i % updateInterval == 0)
+        numGoroutines := runtime.NumGoroutine()
+
+        if ports.Len() < 10000 {
+            for numGoroutines > 15  {
+                numGoroutines := runtime.NumGoroutine()
+                _ = numGoroutines
+                time.Sleep(2 * time.Second)
+                log.Println(resolver, "Number of running Goroutines:", numGoroutines, "ports:",  ports.Len() )
+
+            }
+        }
 
 
         if i % batchSize == 0 || task.resolver == "" {
             lookup_wg.Wait()
+            log.Println("num ports available", ports.Len())
+            log.Println(resolver, "Number of running Goroutines:", numGoroutines)
+            // buf := make([]byte, 1024)
+            // n := runtime.Stack(buf, false)
+            // fmt.Printf("Stack trace:\n%s\n", buf[:n])            
 
             // finished processing tasking
             if task.resolver == "" {
@@ -413,7 +439,7 @@ func rdns_worker(sendCH chan Slash24Result, recvCH chan Task, signalCH chan int,
                 "names=",len(result.ipToName),
                 "task duration=", result.duration,
                 "computed QPS=", qps,
-                "ts=", result.timeStamp.Format("2006-01-02 15:04:05.000"))                        
+                "ts=", result.timeStamp.Format("2006-01-02 15:04:05.000"), res.timeStamp.UnixMilli())                        
 
             // log.Println("Finished: ", task, result.timeStamp)
 
@@ -639,8 +665,9 @@ func main() {
     desiredQPS.Set("77.88.8.3", QPS)
     desiredQPS.Set("77.88.8.7", QPS)
     desiredQPS.Set("77.88.8.8", QPS)
+    desiredQPS.Set("1.2.3.4", QPS)
 
-
+    workerBatchSize.Set("1.2.3.4", bs)
     workerBatchSize.Set("64.6.64.6",  3)
     workerBatchSize.Set("9.9.9.9", 3)
     workerBatchSize.Set("156.154.70.1", 3)
@@ -714,6 +741,7 @@ func main() {
     workerBatchSize.Set("77.88.8.3", bs)
     workerBatchSize.Set("77.88.8.7", bs)
     workerBatchSize.Set("77.88.8.8", bs)
+    
 
     
     // init ports
@@ -729,7 +757,7 @@ func main() {
 
     // get tasking 
     tasking := recv_tasking(TASKING_PATH)
-    log.Println("tasking:", len(tasking))
+    log.Println("tasking:", len(tasking), time.Now().UnixMilli())
     // fmt.Println()
 
     // create wait group

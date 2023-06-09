@@ -23,6 +23,8 @@ ENV PATH="$PATH:/go/bin"
 
 RUN mkdir -p /rdns/src/
 RUN mkdir -p /rdns/bin
+RUN mkdir -p /rdns/scripts
+
 
 COPY godns/* /rdns/src/
 WORKDIR /rdns/src
@@ -39,12 +41,14 @@ RUN echo "alias rdns.py='python3 /rdns/src/rdns.py'" >> /root/.bashrc
 RUN echo "alias ec='rdns.py run --cidr 128.8.0.0/24 --resolvers 1.1.1.1 --qps 500'"  >> /root/.bashrc
 RUN echo "alias eg='rdns.py run --cidr 128.8.0.0/24 --resolvers 8.8.8.8 --qps 500'" >> /root/.bashrc
 RUN echo "alias alias rb='cd /rdns/src/ && go get && (rm /rdns/bin/dns || /bin/true) && go build -gcflags "-N -l"  -o /rdns/bin/dns /rdns/src/dns.go'" >> /root/.bashrc
+RUN echo "alias tc='grep Finished /root/debug.log  | cat -n | tail -n 1'" > /root/.bashrc
+RUN echo "alias dstats='/rdns/scripts/stats.sh'"
 
 RUN go build -o /rdns/bin/dns /rdns/src/dns.go
 
 COPY rdns.py /rdns/src/
 
-
+COPY stats.sh /rdns/scripts
 
 # RUN pip3 --no-cache install scapy aiodns \
 RUN pip3 --no-cache install scapy \
