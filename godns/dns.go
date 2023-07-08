@@ -607,7 +607,7 @@ func main() {
     init_logger(file)
     defer file.Close()
 
-    go catchSignal()
+    // go catchSignal()
 
     // set desired QPS for resolvers
     // TODO: parse desired qps from tasking req
