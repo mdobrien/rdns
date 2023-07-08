@@ -10,9 +10,11 @@ import (
     // "math/rand"
     "net"
     "os"
+    "os/signal"
     "runtime"
     "strconv"
     "sync"
+    "syscall"
     "time"
 
     "github.com/cornelk/hashmap"
@@ -37,7 +39,7 @@ var LOG_FILE = "/root/debug.log"
 var RESOLVERS_PATH = "/tmp/resolvers.json"
 var TASKING_PATH = "/tmp/tasking.json"
 var QPS = 500
-var bs = 10
+var bs = 12
 
 // var resolverToduration = hashmap.New[string, int]()
 
@@ -439,7 +441,7 @@ func rdns_worker(sendCH chan Slash24Result, recvCH chan Task, signalCH chan int,
                 "names=",len(result.ipToName),
                 "task duration=", result.duration,
                 "computed QPS=", qps,
-                "ts=", result.timeStamp.Format("2006-01-02 15:04:05.000"), res.timeStamp.UnixMilli())                        
+                "ts=", result.timeStamp.Format("2006-01-02 15:04:05.000"), result.timeStamp.UnixMilli())                        
 
             // log.Println("Finished: ", task, result.timeStamp)
 
@@ -579,6 +581,22 @@ func rdns_worker(sendCH chan Slash24Result, recvCH chan Task, signalCH chan int,
 
 // }
 
+func catchSignal() {
+
+    c := make(chan os.Signal, 1)
+    signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
+    // Wait for the termination signal
+    sig := <-c
+
+    // Convert the signal to its corresponding name
+    signalName := sig.String()
+
+    // Display the signal name
+    fmt.Printf("Received termination signal: %s\n", signalName)
+
+}
+
 func main() {
 
     file, err := os.OpenFile(LOG_FILE, os.O_CREATE|os.O_WRONLY, 0666)
@@ -589,6 +607,8 @@ func main() {
     init_logger(file)
     defer file.Close()
 
+    go catchSignal()
+
     // set desired QPS for resolvers
     // TODO: parse desired qps from tasking req
 
@@ -597,6 +617,8 @@ func main() {
     desiredQPS.Set("8.8.4.4", QPS)
     desiredQPS.Set("8.8.8.8", QPS)
     desiredQPS.Set("9.9.9.9", QPS)
+    desiredQPS.Set("114.114.114.114", QPS)
+    desiredQPS.Set("114.114.115.115", QPS)
     desiredQPS.Set("208.67.220.220", QPS)
     desiredQPS.Set("208.67.222.222", QPS)
     desiredQPS.Set("216.146.35.35",  QPS)
@@ -668,6 +690,8 @@ func main() {
     desiredQPS.Set("1.2.3.4", QPS)
 
     workerBatchSize.Set("1.2.3.4", bs)
+    workerBatchSize.Set("114.114.114.114", 5)
+    workerBatchSize.Set("114.114.115.115", 5)
     workerBatchSize.Set("64.6.64.6",  3)
     workerBatchSize.Set("9.9.9.9", 3)
     workerBatchSize.Set("156.154.70.1", 3)
@@ -822,6 +846,7 @@ func main() {
     resultCH <- Slash24Result{}
     // Write dns request results to disk
     process_results(resultCH)
+    log.Println("Made it to here")
 
 
     // TODO: parse cnx details from input params

@@ -1,8 +1,15 @@
+# todo
+  - fix dns in rdns:ovpn
+  - specify which server vpn connects too
+  - automate input of user/pass
+  - vpn health check  and repeat on some interval
 
+2023/06/09 01:47:16 tasking: 65536 1686275236993  01:47:16  = 9:49
 02:15:49 == 10:16 PM
 # rdns
 	* completed a /14 (524288 ips) in 1523s (25.38m)
 	* 25.37*((2^24)/524288)
+	* a /8 at ~185.82 qps will take ~25hours
 
 
 # Quick start
@@ -35,6 +42,8 @@ docker build -t rdns .
 
 # run container
 # docker run -ti --volume $RDNS_HOME/rdns.py:/root/rdns.py --volume $RDNS_HOME/godns:/root/godns rdns bash
+docker run -em --cap-add=NET_ADMIN -ti --entrypoint bash rdns:test
+
 docker run \
 	-ti \
 	--volume $RDNS_HOME/rdns.py:/rdns/src/rdns.py \
@@ -42,11 +51,20 @@ docker run \
 	rdns \
 	/bin/bash
 
+8ba01c757f09 - 45.130.83.67
+d2dc11b50d66 - 191.96.170.4
+71636c5ddb27 - 45.86.200.30
+
 # Next goal
-rdns.py run  --cidr 128.0.0.0/8 --resolvers 64.6.64.6 156.154.70.1 199.85.126.10 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 208.67.222.222 208.67.220.220 9.9.9.9 --qps 500
-rdns.py run --cidr 128.0.0.0/9 --resolvers 64.6.64.6 156.154.70.1  199.85.126.10  199.85.127.20 1.1.1.1  1.0.0.1  8.8.8.8  8.8.4.4  208.67.222.222  208.67.220.220 209.244.0.3 209.244.0.4 74.82.42.42 149.112.122.10  --qps 500
+rdns.py run  --cidr 132.0.0.0/10 --resolvers 114.114.114.114 114.114.115.115 64.6.64.6 156.154.70.1 199.85.126.10 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 208.67.222.222 208.67.220.220 9.9.9.9 --qps 500
+rdns.py run  --cidr 132.64.0.0/10 --resolvers 114.114.114.114 114.114.115.115 64.6.64.6 156.154.70.1 199.85.126.10 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 208.67.222.222 208.67.220.220 9.9.9.9 --qps 500
+rdns.py run  --cidr 132.128.0.0/10 --resolvers 114.114.114.114 114.114.115.115 64.6.64.6 156.154.70.1 199.85.126.10 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 208.67.222.222 208.67.220.220 9.9.9.9 --qps 500
+rdns.py run  --cidr 132.192.0.0/8 --resolvers 114.114.114.114 114.114.115.115 64.6.64.6 156.154.70.1 199.85.126.10 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 208.67.222.222 208.67.220.220 9.9.9.9 --qps 500
+
 
 # Goat resolver combo this far
+rdns.py run  --cidr 130.0.0.0/8 --resolvers 114.114.114.114 114.114.115.115 64.6.64.6 156.154.70.1 199.85.126.10 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 208.67.222.222 208.67.220.220 9.9.9.9 --qps 500
+rdns.py run  --cidr 128.0.0.0/8 --resolvers 64.6.64.6 156.154.70.1 199.85.126.10 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 208.67.222.222 208.67.220.220 9.9.9.9 --qps 500
 rdns.py run --cidr 128.0.0.0/10 --resolvers 64.6.64.6 156.154.70.1 199.85.126.10 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 208.67.222.222 208.67.220.220 --qps 500
 # Passed goal
 rdns.py run --cidr 128.0.0.0/13 --resolvers 64.6.64.6 156.154.70.1 199.85.126.10 1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 208.67.222.222 208.67.220.220 --qps 500
@@ -142,3 +160,83 @@ echo "Comodo Secure DNS,8.26.56.26" ; dig @8.26.56.26 -x 128.8.0.0 +noall +answe
 
 # Sort by third column 
 sort -nk3 -t'-' test.txt
+
+
+# gluten 
+```bash
+# cyberghost
+docker run \
+     -it \
+     --rm \
+     --name vpn-1 \
+     --entrypoint bash \
+     --cap-add=NET_ADMIN \
+     -e VPN_SERVICE_PROVIDER=cyberghost \
+     -e OPENVPN_USER=VLwhdm7R9j \
+     -e OPENVPN_PASSWORD=MzBhCq2Tjb \
+     -v /Users/mike/nerdish/dabiz/vpn_configs/ch-1/:/gluetun \
+     -e SERVER_COUNTRIES="United States" \
+     rdns:test   
+
+docker run \
+     -it \
+     --rm \
+     --name vpn-2 \
+     --entrypoint bash \
+     --cap-add=NET_ADMIN \
+     -e VPN_SERVICE_PROVIDER=cyberghost \
+     -e OPENVPN_USER=AzQJRKqEW3 \
+     -e OPENVPN_PASSWORD=yyRc5jxHaJ \
+     -v /Users/mike/nerdish/dabiz/vpn_configs/ch-2/:/gluetun \
+     -e SERVER_COUNTRIES="United States" \
+	 rdns:test   
+# torgaurd
+docker run -it --rm --cap-add=NET_ADMIN -e VPN_SERVICE_PROVIDER=torguard \
+-e OPENVPN_USER=obrienmd4@protonmail.com -e OPENVPN_PASSWORD=FVsnO8Rftrw3lwdj7Y \
+-e SERVER_COUNTRIES=Netherlands qmcgaw/gluetun
+
+
+
+docker run \
+	-it \
+	--rm \
+	--cap-add=NET_ADMIN \
+	-e VPN_SERVICE_PROVIDER=torguard \
+	-e OPENVPN_USER=obrienmd4@protonmail.com \
+	-e OPENVPN_PASSWORD=FVsnO8Rftrw3lwdj7Y \
+	-e SERVER_COUNTRIES=Netherlands \
+	-v /Users/mike/nerdish/dabiz/vpn_configs/tg-1/:/gluetun \
+	qmcgaw/gluetun
+
+# express vpn
+docker run \
+     -it \
+     --rm \
+     --cap-add=NET_ADMIN \
+     -e VPN_SERVICE_PROVIDER=expressvpn \
+	 -e OPENVPN_USER=kk23621trobgae6g5qhdwbtx \
+	 -e OPENVPN_PASSWORD=uu58hc8bkxcyw8ry6z81vdxx \
+	 -e SERVER_COUNTRIES=Netherlands \
+	 -v /Users/mike/nerdish/dabiz/rdns/rdns.py:/rdns/src/rdns.py \
+	 qmcgaw/gluetun
+
+docker run \
+     -it \
+     --rm \
+     --cap-add=NET_ADMIN \
+     -e VPN_SERVICE_PROVIDER=expressvpn \
+	 -e OPENVPN_USER=kk23621trobgae6g5qhdwbtx \
+	 -e OPENVPN_PASSWORD=uu58hc8bkxcyw8ry6z81vdxx \
+	 -e SERVER_COUNTRIES=Netherlands \
+	 -v /Users/mike/nerdish/dabiz/rdns/rdns.py:/rdns/src/rdns.py \
+	 rdns:test
+
+```
+
+# non cidrs
+1-9
+No
+- 10
+- 48?
+- 127
+- 224-255

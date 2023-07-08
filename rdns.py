@@ -427,10 +427,10 @@ def cli_clean(args):
 				logging.debug(f'removed: {path}')
 
 def cli_test(args):
-	DATA_DIR_LOCAL = '/Users/mike/nerdish/dabiz/rdns/data/'
+	DATA_DIR_LOCAL = '/data/'
 	outdata = ''
 	for filename in os.listdir(DATA_DIR_LOCAL):
-		if "128" in filename:
+		if "130" in filename:
 			with open(DATA_DIR_LOCAL + filename, "r") as f:
 				data = f.read()
 				data_json = json.loads(data)
