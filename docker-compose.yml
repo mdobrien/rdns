@@ -1,0 +1,85 @@
+version: "3"
+services:
+  gluetun:
+    image: qmcgaw/gluetun
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - VPN_SERVICE_PROVIDER=torguard
+      - OPENVPN_USER=h3iaeclonhhf4bd 
+      - OPENVPN_PASSWORD=j935d8566GEjIOI
+      - SERVER_COUNTRIES=Netherlands
+    # volumes:
+      # - $RDNS_HOME/vpn_configs/tg-test/:/gluetun 
+
+  evpn:
+    image: rdns:test
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - VPN_SERVICE_PROVIDER=expressvpn
+      - OPENVPN_USER=kk23621trobgae6g5qhdwbtx
+      - OPENVPN_PASSWORD=uu58hc8bkxcyw8ry6z81vdxx
+      - SERVER_COUNTRIES="USA"
+    # entrypoint:
+      # - "/bin/bash"
+
+  cg1:
+    image: rdns:ovpn
+    privileged: true
+    volumes:
+      - $RDNS_HOME/vpn_configs/ch-1:/vpn_config
+      - $RDNS_HOME/docs/resolv.conf:/resolv.conf
+      - $RDNS_HOME/rdns.py:/rdns/src/rdns.py 
+      - $RDNS_HOME/godns/dns.go:/rdns/src/dns.go
+    networks:
+      - cg1_net
+
+  cg2:
+    image: rdns:ovpn
+    privileged: true
+    volumes:
+      - $RDNS_HOME/vpn_configs/ch-2:/vpn_config
+      - $RDNS_HOME/docs/resolv.conf:/resolv.conf
+      - $RDNS_HOME/rdns.py:/rdns/src/rdns.py 
+      - $RDNS_HOME/godns/dns.go:/rdns/src/dns.go
+    networks:
+      - cg2_net
+  cg3:
+    image: rdns:ovpn
+    privileged: true
+    volumes:
+      - $RDNS_HOME/vpn_configs/ch-3/:/vpn_config
+      - $RDNS_HOME/docs/resolv.conf:/resolv.conf
+      - $RDNS_HOME/rdns.py:/rdns/src/rdns.py 
+      - $RDNS_HOME/godns/dns.go:/rdns/src/dns.go      
+    networks:
+      - cg3_net
+  cg4:
+    image: rdns:ovpn
+    privileged: true
+    volumes:
+      - $RDNS_HOME/vpn_configs/ch-4:/vpn_config
+      - $RDNS_HOME/docs/resolv.conf:/resolv.conf
+      - $RDNS_HOME/rdns.py:/rdns/src/rdns.py 
+      - $RDNS_HOME/godns/dns.go:/rdns/src/dns.go
+    networks:
+      - cg4_net
+
+networks:
+  cg1_net:
+    # driver: macvlan
+    # driver_opts:
+    #   parent: en0
+  cg2_net:
+    # driver: macvlan
+    # driver_opts:
+    #   parent: en0
+  cg3_net:
+    # driver: macvlan
+    # driver_opts:
+    #   parent: en0
+  cg4_net:
+    # driver: macvlan
+    # driver_opts:
+    #   parent: en0
